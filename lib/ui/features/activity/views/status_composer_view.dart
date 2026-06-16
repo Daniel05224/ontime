@@ -1,9 +1,9 @@
 import 'dart:math';
 
-import 'package:camera/camera.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -127,7 +127,10 @@ class _StatusComposerViewState extends State<StatusComposerView> {
       backgroundColor: Colors.transparent,
       builder: (_) => _EndTimeSheet(
         vibe: vibe,
+        photoBytes: _photoBytes,
+        photoExt: _photoExt,
         onConfirm: (endsAt) => _postNow(vibe, endsAt),
+        onRetakePhoto: () => _retakePhoto(vibe),
       ),
     );
   }
@@ -154,6 +157,11 @@ class _StatusComposerViewState extends State<StatusComposerView> {
         },
       ),
     );
+  }
+
+  Future<void> _retakePhoto(Vibe vibe) async {
+    Navigator.of(context).pop();
+    _showPhotoQuestion(vibe);
   }
 
   Future<void> _postNow(Vibe vibe, DateTime endsAt) async {
@@ -1558,117 +1566,43 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     end: Offset.zero,
   ).animate(CurvedAnimation(parent: _ctrl, curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic)));
 
-  CameraController? _camera;
-  List<CameraDescription> _cameras = const [];
-  int _camIndex = 0;
-  bool _initializing = true;
-  bool _capturing = false;
-  bool _flashOn = false;
-  String? _error;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    _setupCamera();
+    _openCamera();
   }
 
-  Future<void> _setupCamera() async {
-    try {
-      _cameras = await availableCameras();
-      if (_cameras.isEmpty) {
-        setState(() {
-          _initializing = false;
-          _error = 'Nenhuma câmera encontrada';
-        });
-        return;
-      }
-      // Prefere a câmera frontal para o "registro do momento".
-      _camIndex = _cameras.indexWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-      );
-      if (_camIndex < 0) _camIndex = 0;
-      await _startController(_cameras[_camIndex]);
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _initializing = false;
-          _error = 'Não foi possível abrir a câmera';
-        });
-      }
-    }
-  }
-
-  Future<void> _startController(CameraDescription desc) async {
-    final controller = CameraController(
-      desc,
-      ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-    await controller.initialize();
-    if (!mounted) {
-      await controller.dispose();
-      return;
-    }
-    setState(() {
-      _camera = controller;
-      _initializing = false;
-      _error = null;
-    });
-  }
-
-  Future<void> _flipCamera() async {
-    if (_cameras.length < 2) return;
-    HapticFeedback.selectionClick();
-    final old = _camera;
-    setState(() {
-      _camera = null;
-      _initializing = true;
-    });
-    await old?.dispose();
-    _camIndex = (_camIndex + 1) % _cameras.length;
-    await _startController(_cameras[_camIndex]);
-  }
-
-  Future<void> _toggleFlash() async {
-    final cam = _camera;
-    if (cam == null || !cam.value.isInitialized) return;
-    HapticFeedback.selectionClick();
-    try {
-      final newFlashMode =
-          _flashOn ? FlashMode.off : FlashMode.torch;
-      await cam.setFlashMode(newFlashMode);
-      setState(() => _flashOn = !_flashOn);
-    } catch (_) {}
-  }
-
-  Future<void> _capture() async {
-    final cam = _camera;
-    if (cam == null || _capturing || !cam.value.isInitialized) return;
-    setState(() => _capturing = true);
+  Future<void> _openCamera() async {
     HapticFeedback.mediumImpact();
     try {
-      final file = await cam.takePicture();
-      final bytes = await file.readAsBytes();
-      final ext = file.path.split('.').last.toLowerCase();
-      if (!mounted) return;
-      widget.onCaptured(bytes, ext.isEmpty ? 'jpg' : ext);
+      final XFile? photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.front,
+      );
+      if (photo != null) {
+        final bytes = await photo.readAsBytes();
+        final ext = photo.path.split('.').last.toLowerCase();
+        if (mounted) {
+          widget.onCaptured(bytes, ext.isEmpty ? 'jpg' : ext);
+        }
+      } else {
+        if (mounted) Navigator.of(context).pop();
+      }
     } catch (_) {
-      if (mounted) setState(() => _capturing = false);
+      if (mounted) Navigator.of(context).pop();
     }
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
-    _camera?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final cam = _camera;
-    final ready = cam != null && cam.value.isInitialized;
     final topPad = MediaQuery.paddingOf(context).top;
     final bottomPad = MediaQuery.paddingOf(context).bottom;
 
@@ -1682,44 +1616,10 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // ── Câmera ao vivo em tela cheia ──────────────────────────────
-              if (ready)
-                FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: cam.value.previewSize!.height,
-                    height: cam.value.previewSize!.width,
-                    child: CameraPreview(cam),
-                  ),
-                )
-              else
-                Container(
-                  color: Colors.black,
-                  alignment: Alignment.center,
-                  child: _initializing
-                      ? const SizedBox(
-                          width: 34,
-                          height: 34,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white70,
-                          ),
-                        )
-                      : Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text(
-                            _error ?? 'Câmera indisponível',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                ),
+              // ── Background ─────────────────────────────────────────────
+              Container(color: Colors.black),
 
-              // ── Gradiente superior (título) ───────────────────────────────
+              // ── Gradiente superior ──────────────────────────────────────
               Positioned(
                 top: 0, left: 0, right: 0, height: topPad + 180,
                 child: const IgnorePointer(
@@ -1735,9 +1635,9 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
                 ),
               ),
 
-              // ── Gradiente inferior (controles) ────────────────────────────
+              // ── Gradiente inferior ──────────────────────────────────────
               Positioned(
-                bottom: 0, left: 0, right: 0, height: 240,
+                bottom: 0, left: 0, right: 0, height: 200,
                 child: const IgnorePointer(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -1751,7 +1651,7 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
                 ),
               ),
 
-              // ── Título ────────────────────────────────────────────────────
+              // ── Título ──────────────────────────────────────────────────
               Positioned(
                 top: topPad + 60,
                 left: 24,
@@ -1785,7 +1685,7 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
                 ),
               ),
 
-              // ── Botão fechar (X) ──────────────────────────────────────────
+              // ── Botão fechar (X) ────────────────────────────────────────
               Positioned(
                 top: topPad + 54,
                 left: 12,
@@ -1808,126 +1708,34 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
                 ),
               ),
 
-              // ── Botão flash (superior direito) ─────────────────────────
-              Positioned(
-                top: topPad + 54,
-                right: 12,
-                child: GestureDetector(
-                  onTap: _toggleFlash,
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: _flashOn
-                          ? Colors.amber.withValues(alpha: 0.8)
-                          : Colors.black.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      _flashOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                ),
-              ),
-
-              // ── Controles inferiores: flip + shutter + "só postar" ───────────
+              // ── Botão "Só postar" (embaixo) ─────────────────────────────
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: bottomPad + 20,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Shutter + Flip camera
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Botão trocar câmera (esquerda)
-                        if (_cameras.length > 1)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 24),
-                            child: GestureDetector(
-                              onTap: _flipCamera,
-                              child: Container(
-                                width: 50,
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.cameraswitch_rounded,
-                                    color: Colors.white, size: 22),
-                              ),
-                            ),
-                          )
-                        else
-                          const SizedBox(width: 62),
-                        // Shutter (centro)
-                        GestureDetector(
-                          onTap: ready ? _capture : null,
-                          child: Opacity(
-                            opacity: ready ? 1 : 0.4,
-                            child: Container(
-                              width: 78,
-                              height: 78,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withValues(alpha: 0.25),
-                                border: Border.all(color: Colors.white, width: 3),
-                              ),
-                              child: Center(
-                                child: _capturing
-                                    ? const SizedBox(
-                                        width: 28,
-                                        height: 28,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : Container(
-                                        width: 60,
-                                        height: 60,
-                                        decoration: const BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 62),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    // Só postar
-                    GestureDetector(
-                      onTap: widget.onSkip,
-                      behavior: HitTestBehavior.opaque,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 22, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(Radii.pill),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.25)),
-                        ),
-                        child: const Text(
-                          'Só postar mesmo  🚀',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
+                child: Center(
+                  child: GestureDetector(
+                    onTap: widget.onSkip,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 22, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(Radii.pill),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25)),
+                      ),
+                      child: const Text(
+                        'Só postar mesmo  🚀',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -1943,9 +1751,18 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _EndTimeSheet extends StatefulWidget {
-  const _EndTimeSheet({required this.vibe, required this.onConfirm});
+  const _EndTimeSheet({
+    required this.vibe,
+    required this.onConfirm,
+    this.photoBytes,
+    this.photoExt,
+    this.onRetakePhoto,
+  });
   final Vibe vibe;
   final void Function(DateTime endsAt) onConfirm;
+  final Uint8List? photoBytes;
+  final String? photoExt;
+  final VoidCallback? onRetakePhoto;
 
   @override
   State<_EndTimeSheet> createState() => _EndTimeSheetState();
@@ -2108,6 +1925,48 @@ class _EndTimeSheetState extends State<_EndTimeSheet>
             ),
           ),
           const SizedBox(height: 20),
+
+          // Photo preview (se houver foto)
+          if (widget.photoBytes != null)
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(Radii.lg),
+                      child: Image.memory(
+                        widget.photoBytes!,
+                        width: double.infinity,
+                        height: 180,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: GestureDetector(
+                        onTap: widget.onRetakePhoto,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.refresh_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
 
           // Title
           ShaderMask(
