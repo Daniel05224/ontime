@@ -32,6 +32,11 @@ final _navKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Lock app to portrait mode only
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
   // Firebase must initialize before anything else
   await Firebase.initializeApp();
 
