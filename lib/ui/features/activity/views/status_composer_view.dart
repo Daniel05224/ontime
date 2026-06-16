@@ -125,6 +125,7 @@ class _StatusComposerViewState extends State<StatusComposerView> {
       context: context,
       isScrollControlled: true,
       isDismissible: false,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => _EndTimeSheet(
         vibe: vibe,
@@ -142,6 +143,7 @@ class _StatusComposerViewState extends State<StatusComposerView> {
       context: context,
       isScrollControlled: true,
       isDismissible: false,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => _PhotoQuestionSheet(
         vibe: vibe,
