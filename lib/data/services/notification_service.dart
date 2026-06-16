@@ -30,9 +30,6 @@ class NotificationService {
   /// Called when user taps the "o que está fazendo?" expiry notification.
   VoidCallback? onExpiryTap;
 
-  // Holds the FCM token if obtained before auth session was restored.
-  String? _pendingFcmToken;
-
   static const _msgChannelId = 'ontime_messages';
   static const _msgChannelName = 'Mensagens';
   static const _expiryChannelId = 'ontime_expiry';
@@ -107,7 +104,6 @@ class NotificationService {
     try {
       final token = await messaging.getToken();
       if (token != null) {
-        _pendingFcmToken = token;
         await saveFcmToken(token);
       }
     } catch (_) {
@@ -116,7 +112,6 @@ class NotificationService {
 
     // Refresh token whenever iOS rotates it
     messaging.onTokenRefresh.listen((token) {
-      _pendingFcmToken = token;
       saveFcmToken(token);
     });
 
@@ -140,7 +135,6 @@ class NotificationService {
       await Supabase.instance.client
           .from('profiles')
           .update({'fcm_token': token}).eq('id', uid);
-      _pendingFcmToken = null;
     } catch (_) {}
   }
 

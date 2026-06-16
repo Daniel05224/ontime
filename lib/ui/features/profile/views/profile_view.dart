@@ -676,10 +676,13 @@ class _NameFormState extends State<_NameForm> {
       await widget.onSave(name);
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = 'Não foi possível salvar. Tente novamente.');
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -750,12 +753,17 @@ class _PasswordFormState extends State<_PasswordForm> {
     });
     try {
       await widget.onSave(newPass);
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = 'Não foi possível alterar. Tente novamente.');
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -951,13 +959,16 @@ class _FriendRequestsTileState extends State<_FriendRequestsTile> {
     try {
       final requests = await SupabaseFriendService.instance
           .getPendingRequests();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _requests = requests;
           _loading = false;
         });
+      }
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
