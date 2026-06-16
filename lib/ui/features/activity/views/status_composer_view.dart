@@ -124,6 +124,7 @@ class _StatusComposerViewState extends State<StatusComposerView> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      isDismissible: false,
       backgroundColor: Colors.transparent,
       builder: (_) => _EndTimeSheet(
         vibe: vibe,
@@ -140,6 +141,7 @@ class _StatusComposerViewState extends State<StatusComposerView> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      isDismissible: false,
       backgroundColor: Colors.transparent,
       builder: (_) => _PhotoQuestionSheet(
         vibe: vibe,
