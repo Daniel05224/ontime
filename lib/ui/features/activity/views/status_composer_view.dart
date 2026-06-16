@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:camera/camera.dart';
@@ -1619,42 +1620,53 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     try {
       final controller = CameraController(
         desc,
-        ResolutionPreset.high,
+        ResolutionPreset.medium,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
 
-      await controller.initialize();
+      await controller.initialize().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw TimeoutException('Camera init timeout'),
+      );
 
       if (!mounted) {
         await controller.dispose();
         return;
       }
 
-      // Small delay to ensure camera is fully ready
-      await Future.delayed(const Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 500));
 
       if (!mounted) {
         await controller.dispose();
         return;
       }
 
-      final minZoom = await controller.getMinZoomLevel();
-      final maxZoom = await controller.getMaxZoomLevel();
+      double minZoom = 1.0;
+      double maxZoom = 1.0;
+      try {
+        minZoom = await controller.getMinZoomLevel();
+        maxZoom = await controller.getMaxZoomLevel();
+      } catch (_) {
+        // Ignore zoom level errors
+      }
 
-      setState(() {
-        _camera = controller;
-        _initializing = false;
-        _error = null;
-        _minZoom = minZoom;
-        _maxZoom = maxZoom;
-        _currentZoom = 1.0;
-      });
+      if (mounted) {
+        setState(() {
+          _camera = controller;
+          _initializing = false;
+          _error = null;
+          _minZoom = minZoom;
+          _maxZoom = maxZoom;
+          _currentZoom = 1.0;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
           _initializing = false;
-          _error = 'Erro ao inicializar câmera: ${e.toString()}';
+          _error = null;
+          _camera = null;
         });
       }
     }
