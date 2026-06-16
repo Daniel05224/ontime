@@ -1576,6 +1576,7 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
   double _currentZoom = 1.0;
   double _maxZoom = 1.0;
   double _minZoom = 1.0;
+  double _lastZoomScale = 1.0;
 
   @override
   void initState() {
@@ -1652,9 +1653,25 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     if (cam == null || !cam.value.isInitialized) return;
     HapticFeedback.selectionClick();
     try {
-      final newFlashMode = _flashOn ? FlashMode.off : FlashMode.torch;
-      await cam.setFlashMode(newFlashMode);
-      setState(() => _flashOn = !_flashOn);
+      if (_flashOn) {
+        await cam.setFlashMode(FlashMode.off);
+        setState(() => _flashOn = false);
+      } else {
+        try {
+          await cam.setFlashMode(FlashMode.torch);
+          setState(() => _flashOn = true);
+        } catch (_) {
+          try {
+            await cam.setFlashMode(FlashMode.always);
+            setState(() => _flashOn = true);
+          } catch (_) {
+            try {
+              await cam.setFlashMode(FlashMode.auto);
+              setState(() => _flashOn = true);
+            } catch (_) {}
+          }
+        }
+      }
     } catch (_) {}
   }
 
@@ -1666,13 +1683,19 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     setState(() => _currentZoom = clampedZoom);
   }
 
+  void _handleScaleStart(ScaleStartDetails details) {
+    _lastZoomScale = 1.0;
+  }
+
   void _handleScaleUpdate(ScaleUpdateDetails details) {
-    if (details.scale > 1.0) {
-      _setZoom(_currentZoom * (1.0 + (details.scale - 1.0) * 0.1));
-    } else if (details.scale < 1.0) {
-      final newZoom = _currentZoom * details.scale;
-      _setZoom(newZoom);
-    }
+    final scaleDelta = details.scale / _lastZoomScale;
+    final newZoom = _currentZoom * scaleDelta;
+    _setZoom(newZoom);
+    _lastZoomScale = details.scale;
+  }
+
+  void _handleScaleEnd(ScaleEndDetails details) {
+    _lastZoomScale = 1.0;
   }
 
   Future<void> _capture() async {
@@ -1721,7 +1744,9 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
                     width: _camera!.value.previewSize!.height,
                     height: _camera!.value.previewSize!.width,
                     child: GestureDetector(
+                      onScaleStart: _handleScaleStart,
                       onScaleUpdate: _handleScaleUpdate,
+                      onScaleEnd: _handleScaleEnd,
                       child: CameraPreview(_camera!),
                     ),
                   ),
