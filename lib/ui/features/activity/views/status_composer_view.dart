@@ -2220,196 +2220,204 @@ class _EndTimeSheetState extends State<_EndTimeSheet>
         borderRadius: const BorderRadius.vertical(
             top: Radius.circular(Radii.xl)),
       ),
-      padding: EdgeInsets.fromLTRB(20, 12, 20, bottomPad + 24),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
           // Drag handle
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.border,
-              borderRadius: BorderRadius.circular(2),
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
 
-          // Photo preview (se houver foto)
+          // Photo preview (ocupa a tela toda)
           if (widget.photoBytes != null)
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Stack(
-                  alignment: Alignment.topRight,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(Radii.lg),
-                      child: Image.memory(
-                        widget.photoBytes!,
-                        width: double.infinity,
-                        height: 180,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: GestureDetector(
-                        onTap: widget.onRetakePhoto,
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.refresh_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
-
-          // Title
-          ShaderMask(
-            shaderCallback: (b) => AppColors.brandGradient.createShader(b),
-            child: const Text(
-              'Até quando? ⏱',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Defina o horário que você termina',
-            style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-
-          // Animated ring + time display
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: _progress),
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeOutCubic,
-            builder: (_, value, child) => SizedBox(
-              width: 170,
-              height: 170,
-              child: CustomPaint(
-                painter: _RingPainter(progress: value, color: accent),
-                child: child,
-              ),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+            Expanded(
+              child: Stack(
+                alignment: Alignment.topRight,
                 children: [
-                  Text(widget.vibe.emoji,
-                      style: const TextStyle(fontSize: 40)),
-                  const SizedBox(height: 6),
-                  AnimatedSwitcher(
-                    duration: AppMotion.fast,
-                    child: Text(
-                      _endLabel,
-                      key: ValueKey(_endLabel),
-                      style: TextStyle(
-                        color: _endsAt != null
-                            ? accent
-                            : AppColors.textTertiary,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -1,
-                      ),
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(Radii.xl),
+                    ),
+                    child: Image.memory(
+                      widget.photoBytes!,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
                     ),
                   ),
-                  AnimatedOpacity(
-                    duration: AppMotion.fast,
-                    opacity: _endsAt != null ? 1 : 0,
-                    child: const Text(
-                      'até às',
-                      style: TextStyle(
-                          color: AppColors.textTertiary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: GestureDetector(
+                      onTap: widget.onRetakePhoto,
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.refresh_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 20),
 
-          // Preset chips — horizontal scroll with staggered entrance
-          SizedBox(
-            height: 52,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _presets.length + 1,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) {
-                if (i == _presets.length) {
-                  return _CustomChip(
-                    selected: _customEnd != null,
-                    accent: accent,
-                    onTap: _pickCustom,
-                  );
-                }
-                final preset = _presets[i];
-                final selected = _selectedMinutes == preset.minutes;
-                return AnimatedBuilder(
-                  animation: _enterCtrl,
-                  builder: (_, child) {
-                    final start = i * 0.10;
-                    final raw = ((_enterCtrl.value - start) /
-                            (1.0 - start))
-                        .clamp(0.0, 1.0);
-                    final t = Curves.easeOutBack.transform(raw).clamp(0.0, 1.0);
-                    return Opacity(
-                      opacity: raw.clamp(0.0, 1.0),
-                      child: Transform.translate(
-                        offset: Offset(0, 24 * (1 - t)),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: _PresetChip(
-                    emoji: preset.emoji,
-                    label: preset.label,
-                    selected: selected,
-                    accent: accent,
-                    onTap: () => _selectPreset(preset.minutes),
+          // Horário e controles (fixo embaixo)
+          Container(
+            padding: EdgeInsets.fromLTRB(20, 24, 20, bottomPad + 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Title
+                ShaderMask(
+                  shaderCallback: (b) => AppColors.brandGradient.createShader(b),
+                  child: const Text(
+                    'Até quando? ⏱',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 20),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Defina o horário que você termina',
+                  style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                ),
+                const SizedBox(height: 24),
 
-          // Confirm button
-          AnimatedOpacity(
-            opacity: _endsAt != null ? 1.0 : 0.45,
-            duration: AppMotion.fast,
-            child: _GradientButton(
-              label: _endsAt != null
-                  ? 'Confirmar  ·  até $_endLabel'
-                  : 'Escolha uma duração',
-              gradient: _endsAt != null
-                  ? AppColors.duotone(accent)
-                  : LinearGradient(colors: [
-                      AppColors.surfaceHigh,
-                      AppColors.surfaceHigh
-                    ]),
-              glow: _endsAt != null ? accent : null,
-              onTap: _confirm,
+                // Animated ring + time display
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: _progress),
+                  duration: const Duration(milliseconds: 600),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, value, child) => SizedBox(
+                    width: 170,
+                    height: 170,
+                    child: CustomPaint(
+                      painter: _RingPainter(progress: value, color: accent),
+                      child: child,
+                    ),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(widget.vibe.emoji,
+                            style: const TextStyle(fontSize: 40)),
+                        const SizedBox(height: 6),
+                        AnimatedSwitcher(
+                          duration: AppMotion.fast,
+                          child: Text(
+                            _endLabel,
+                            key: ValueKey(_endLabel),
+                            style: TextStyle(
+                              color: _endsAt != null
+                                  ? accent
+                                  : AppColors.textTertiary,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -1,
+                            ),
+                          ),
+                        ),
+                        AnimatedOpacity(
+                          duration: AppMotion.fast,
+                          opacity: _endsAt != null ? 1 : 0,
+                          child: const Text(
+                            'até às',
+                            style: TextStyle(
+                                color: AppColors.textTertiary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Preset chips — horizontal scroll with staggered entrance
+                SizedBox(
+                  height: 52,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _presets.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      if (i == _presets.length) {
+                        return _CustomChip(
+                          selected: _customEnd != null,
+                          accent: accent,
+                          onTap: _pickCustom,
+                        );
+                      }
+                      final preset = _presets[i];
+                      final selected = _selectedMinutes == preset.minutes;
+                      return AnimatedBuilder(
+                        animation: _enterCtrl,
+                        builder: (_, child) {
+                          final start = i * 0.10;
+                          final raw = ((_enterCtrl.value - start) /
+                                  (1.0 - start))
+                              .clamp(0.0, 1.0);
+                          final t = Curves.easeOutBack.transform(raw).clamp(0.0, 1.0);
+                          return Opacity(
+                            opacity: raw.clamp(0.0, 1.0),
+                            child: Transform.translate(
+                              offset: Offset(0, 24 * (1 - t)),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: _PresetChip(
+                          emoji: preset.emoji,
+                          label: preset.label,
+                          selected: selected,
+                          accent: accent,
+                          onTap: () => _selectPreset(preset.minutes),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Confirm button
+                AnimatedOpacity(
+                  opacity: _endsAt != null ? 1.0 : 0.45,
+                  duration: AppMotion.fast,
+                  child: _GradientButton(
+                    label: _endsAt != null
+                        ? 'Confirmar  ·  até $_endLabel'
+                        : 'Escolha uma duração',
+                    gradient: _endsAt != null
+                        ? AppColors.duotone(accent)
+                        : LinearGradient(colors: [
+                            AppColors.surfaceHigh,
+                            AppColors.surfaceHigh
+                          ]),
+                    glow: _endsAt != null ? accent : null,
+                    onTap: _confirm,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
