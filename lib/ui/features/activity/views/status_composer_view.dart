@@ -1658,6 +1658,10 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
         // Ignore zoom level errors
       }
 
+      // Force zoom to stay at 1x only - no 0.5x, no 2x
+      minZoom = 1.0;
+      maxZoom = 1.0;
+
       if (mounted) {
         setState(() {
           _camera = controller;
@@ -1745,6 +1749,9 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
   }
 
   void _handleScaleUpdate(ScaleUpdateDetails details) {
+    // Only allow zoom if min and max are different
+    if (_minZoom >= _maxZoom) return;
+
     final scaleDelta = details.scale / _lastZoomScale;
     final newZoom = _currentZoom * scaleDelta;
     _setZoom(newZoom);
