@@ -1635,6 +1635,13 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
         return;
       }
 
+      // Ensure flash is OFF when camera starts
+      try {
+        await controller.setFlashMode(FlashMode.off);
+      } catch (_) {
+        // Ignore flash errors
+      }
+
       await Future.delayed(const Duration(milliseconds: 500));
 
       if (!mounted) {
@@ -1659,6 +1666,7 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
           _minZoom = minZoom;
           _maxZoom = maxZoom;
           _currentZoom = 1.0;
+          _flashOn = false; // Ensure flash is OFF
         });
       }
     } catch (e) {
@@ -2280,22 +2288,52 @@ class _EndTimeSheetState extends State<_EndTimeSheet>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Title
-                ShaderMask(
-                  shaderCallback: (b) => AppColors.brandGradient.createShader(b),
-                  child: const Text(
-                    'Até quando? ⏱',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
+                // Back button + Title
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: AppColors.textPrimary,
+                          size: 22,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Defina o horário que você termina',
-                  style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ShaderMask(
+                            shaderCallback: (b) => AppColors.brandGradient.createShader(b),
+                            child: const Text(
+                              'Até quando? ⏱',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Defina o horário que você termina',
+                            style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
 
