@@ -2212,6 +2212,7 @@ class _EndTimeSheetState extends State<_EndTimeSheet>
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.paddingOf(context).bottom;
     final accent = widget.vibe.color;
+    final hasPhoto = widget.photoBytes != null;
 
     return Container(
       decoration: BoxDecoration(
@@ -2227,7 +2228,7 @@ class _EndTimeSheetState extends State<_EndTimeSheet>
             top: Radius.circular(Radii.xl)),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.max,
+        mainAxisSize: hasPhoto ? MainAxisSize.max : MainAxisSize.min,
         children: [
           // Drag handle
           Padding(
