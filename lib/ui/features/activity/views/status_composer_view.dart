@@ -1592,10 +1592,12 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     try {
       _cameras = await availableCameras();
       if (_cameras.isEmpty) {
-        setState(() {
-          _initializing = false;
-          _error = 'Nenhuma câmera encontrada';
-        });
+        if (mounted) {
+          setState(() {
+            _initializing = false;
+            _error = 'Nenhuma câmera encontrada';
+          });
+        }
         return;
       }
       _camIndex = _cameras.indexWhere(
@@ -1607,36 +1609,55 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
       if (mounted) {
         setState(() {
           _initializing = false;
-          _error = 'Não foi possível abrir a câmera';
+          _error = 'Não foi possível abrir a câmera: ${e.toString()}';
         });
       }
     }
   }
 
   Future<void> _startController(CameraDescription desc) async {
-    final controller = CameraController(
-      desc,
-      ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-    await controller.initialize();
-    if (!mounted) {
-      await controller.dispose();
-      return;
+    try {
+      final controller = CameraController(
+        desc,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+
+      await controller.initialize();
+
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+
+      // Small delay to ensure camera is fully ready
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+
+      final minZoom = await controller.getMinZoomLevel();
+      final maxZoom = await controller.getMaxZoomLevel();
+
+      setState(() {
+        _camera = controller;
+        _initializing = false;
+        _error = null;
+        _minZoom = minZoom;
+        _maxZoom = maxZoom;
+        _currentZoom = 1.0;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _initializing = false;
+          _error = 'Erro ao inicializar câmera: ${e.toString()}';
+        });
+      }
     }
-
-    final minZoom = await controller.getMinZoomLevel();
-    final maxZoom = await controller.getMaxZoomLevel();
-
-    setState(() {
-      _camera = controller;
-      _initializing = false;
-      _error = null;
-      _minZoom = minZoom;
-      _maxZoom = maxZoom;
-      _currentZoom = 1.0;
-    });
   }
 
   Future<void> _flipCamera() async {
@@ -1659,19 +1680,27 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     try {
       if (_flashOn) {
         await cam.setFlashMode(FlashMode.off);
-        setState(() => _flashOn = false);
+        if (mounted) {
+          setState(() => _flashOn = false);
+        }
       } else {
         try {
           await cam.setFlashMode(FlashMode.torch);
-          setState(() => _flashOn = true);
+          if (mounted) {
+            setState(() => _flashOn = true);
+          }
         } catch (_) {
           try {
             await cam.setFlashMode(FlashMode.always);
-            setState(() => _flashOn = true);
+            if (mounted) {
+              setState(() => _flashOn = true);
+            }
           } catch (_) {
             try {
               await cam.setFlashMode(FlashMode.auto);
-              setState(() => _flashOn = true);
+              if (mounted) {
+                setState(() => _flashOn = true);
+              }
             } catch (_) {}
           }
         }
@@ -1682,9 +1711,15 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
   Future<void> _setZoom(double zoom) async {
     final cam = _camera;
     if (cam == null || !cam.value.isInitialized) return;
-    final clampedZoom = zoom.clamp(_minZoom, _maxZoom);
-    await cam.setZoomLevel(clampedZoom);
-    setState(() => _currentZoom = clampedZoom);
+    try {
+      final clampedZoom = zoom.clamp(_minZoom, _maxZoom);
+      await cam.setZoomLevel(clampedZoom);
+      if (mounted) {
+        setState(() => _currentZoom = clampedZoom);
+      }
+    } catch (_) {
+      // Silently ignore zoom errors
+    }
   }
 
   void _handleScaleStart(ScaleStartDetails details) {
