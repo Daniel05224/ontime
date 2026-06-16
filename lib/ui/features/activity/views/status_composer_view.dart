@@ -1620,7 +1620,7 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     try {
       final controller = CameraController(
         desc,
-        ResolutionPreset.high,
+        ResolutionPreset.ultraHigh,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
