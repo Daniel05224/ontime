@@ -1691,29 +1691,27 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     HapticFeedback.selectionClick();
     try {
       if (_flashOn) {
+        // Desligar flash - garantir que é OFF e não AUTO
         await cam.setFlashMode(FlashMode.off);
         if (mounted) {
           setState(() => _flashOn = false);
         }
       } else {
+        // Ligar flash - usar apenas TORCH (contínuo)
         try {
           await cam.setFlashMode(FlashMode.torch);
           if (mounted) {
             setState(() => _flashOn = true);
           }
         } catch (_) {
+          // Se torch não funcionar, tentar always
           try {
             await cam.setFlashMode(FlashMode.always);
             if (mounted) {
               setState(() => _flashOn = true);
             }
           } catch (_) {
-            try {
-              await cam.setFlashMode(FlashMode.auto);
-              if (mounted) {
-                setState(() => _flashOn = true);
-              }
-            } catch (_) {}
+            // Se nada funcionar, não mudar estado
           }
         }
       }
