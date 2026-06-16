@@ -1,9 +1,9 @@
 import 'dart:math';
 
+import 'package:camera/camera.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -1566,38 +1566,114 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     end: Offset.zero,
   ).animate(CurvedAnimation(parent: _ctrl, curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic)));
 
-  final ImagePicker _picker = ImagePicker();
+  CameraController? _camera;
+  List<CameraDescription> _cameras = const [];
+  int _camIndex = 0;
+  bool _initializing = true;
+  bool _capturing = false;
+  String? _error;
+  double _currentZoom = 1.0;
+  double _maxZoom = 1.0;
+  double _minZoom = 1.0;
 
   @override
   void initState() {
     super.initState();
-    _openCamera();
+    _setupCamera();
   }
 
-  Future<void> _openCamera() async {
+  Future<void> _setupCamera() async {
+    try {
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
+        setState(() {
+          _initializing = false;
+          _error = 'Nenhuma câmera encontrada';
+        });
+        return;
+      }
+      _camIndex = _cameras.indexWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+      );
+      if (_camIndex < 0) _camIndex = 0;
+      await _startController(_cameras[_camIndex]);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _initializing = false;
+          _error = 'Não foi possível abrir a câmera';
+        });
+      }
+    }
+  }
+
+  Future<void> _startController(CameraDescription desc) async {
+    final controller = CameraController(
+      desc,
+      ResolutionPreset.high,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+    await controller.initialize();
+    if (!mounted) {
+      await controller.dispose();
+      return;
+    }
+
+    final minZoom = await controller.getMinZoomLevel();
+    final maxZoom = await controller.getMaxZoomLevel();
+
+    setState(() {
+      _camera = controller;
+      _initializing = false;
+      _error = null;
+      _minZoom = minZoom;
+      _maxZoom = maxZoom;
+      _currentZoom = 1.0;
+    });
+  }
+
+  Future<void> _flipCamera() async {
+    if (_cameras.length < 2) return;
+    HapticFeedback.selectionClick();
+    final old = _camera;
+    setState(() {
+      _camera = null;
+      _initializing = true;
+    });
+    await old?.dispose();
+    _camIndex = (_camIndex + 1) % _cameras.length;
+    await _startController(_cameras[_camIndex]);
+  }
+
+  Future<void> _setZoom(double zoom) async {
+    final cam = _camera;
+    if (cam == null || !cam.value.isInitialized) return;
+    final clampedZoom = zoom.clamp(_minZoom, _maxZoom);
+    await cam.setZoomLevel(clampedZoom);
+    setState(() => _currentZoom = clampedZoom);
+  }
+
+  Future<void> _capture() async {
+    final cam = _camera;
+    if (cam == null || _capturing || !cam.value.isInitialized) return;
+    setState(() => _capturing = true);
     HapticFeedback.mediumImpact();
     try {
-      final XFile? photo = await _picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.front,
-      );
-      if (photo != null) {
-        final bytes = await photo.readAsBytes();
-        final ext = photo.path.split('.').last.toLowerCase();
-        if (mounted) {
-          widget.onCaptured(bytes, ext.isEmpty ? 'jpg' : ext);
-        }
-      } else {
-        if (mounted) Navigator.of(context).pop();
-      }
+      final file = await cam.takePicture();
+      final bytes = await file.readAsBytes();
+      final ext = file.path.split('.').last.toLowerCase();
+      if (!mounted) return;
+      widget.onCaptured(bytes, ext.isEmpty ? 'jpg' : ext);
     } catch (_) {
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) setState(() => _capturing = false);
     }
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _camera?.dispose();
     super.dispose();
   }
 
@@ -1616,8 +1692,49 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // ── Background ─────────────────────────────────────────────
-              Container(color: Colors.black),
+              // ── Câmera ao vivo em tela cheia ──────────────────────────────
+              if (_camera != null && _camera!.value.isInitialized)
+                FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: _camera!.value.previewSize!.height,
+                    height: _camera!.value.previewSize!.width,
+                    child: GestureDetector(
+                      onScaleUpdate: (details) {
+                        if (details.scale > 1.0) {
+                          _setZoom(_currentZoom * details.scale);
+                        }
+                      },
+                      child: CameraPreview(_camera!),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  color: Colors.black,
+                  alignment: Alignment.center,
+                  child: _initializing
+                      ? const SizedBox(
+                          width: 34,
+                          height: 34,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white70,
+                          ),
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            _error ?? 'Câmera indisponível',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                ),
 
               // ── Gradiente superior ──────────────────────────────────────
               Positioned(
@@ -1705,6 +1822,123 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
                     child: const Icon(Icons.close_rounded,
                         color: Colors.white, size: 24),
                   ),
+                ),
+              ),
+
+              // ── Controles de câmera (trocar câmera + shutter) ────────────
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: bottomPad + 100,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Zoom slider
+                    if (_camera != null && _camera!.value.isInitialized)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          children: [
+                            Text(
+                              '${(_currentZoom).toStringAsFixed(1)}x',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SliderTheme(
+                              data: SliderThemeData(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 6,
+                                ),
+                                activeTrackColor: Colors.white,
+                                inactiveTrackColor:
+                                    Colors.white.withValues(alpha: 0.3),
+                                thumbColor: Colors.white,
+                              ),
+                              child: Slider(
+                                value: _currentZoom,
+                                min: _minZoom,
+                                max: _maxZoom,
+                                onChanged: _setZoom,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 24),
+                    // Câmera + Shutter + Skip
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Botão trocar câmera
+                        if (_cameras.length > 1)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 24),
+                            child: GestureDetector(
+                              onTap: _flipCamera,
+                              child: Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.cameraswitch_rounded,
+                                    color: Colors.white, size: 22),
+                              ),
+                            ),
+                          )
+                        else
+                          const SizedBox(width: 62),
+                        // Shutter
+                        GestureDetector(
+                          onTap: _camera != null && _camera!.value.isInitialized
+                              ? _capture
+                              : null,
+                          child: Opacity(
+                            opacity:
+                                _camera != null && _camera!.value.isInitialized
+                                    ? 1
+                                    : 0.4,
+                            child: Container(
+                              width: 78,
+                              height: 78,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: 0.25),
+                                border: Border.all(
+                                    color: Colors.white, width: 3),
+                              ),
+                              child: Center(
+                                child: _capturing
+                                    ? const SizedBox(
+                                        width: 28,
+                                        height: 28,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : Container(
+                                        width: 60,
+                                        height: 60,
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 62),
+                      ],
+                    ),
+                  ],
                 ),
               ),
 
