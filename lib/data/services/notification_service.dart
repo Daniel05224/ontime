@@ -138,11 +138,12 @@ class NotificationService {
     } catch (_) {}
   }
 
-  /// Clears all message notifications and resets badge (Android only — iOS handled natively).
+  /// Clears all message notifications and resets badge.
   Future<void> clearBadge() async {
-    if (Platform.isAndroid) {
+    try {
+      // Cancel all local notifications (scheduled and delivered)
       await _local.cancelAll();
-    }
+    } catch (_) {}
   }
 
   Future<void> clearFcmToken() async {

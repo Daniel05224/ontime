@@ -47,7 +47,11 @@ void main() async {
 
   // Notification init can be slow on iOS (waits for APNs token) — run it
   // without blocking so runApp() is reached immediately and the UI appears.
-  NotificationService.instance.init().then((_) => _setupNotificationRouting());
+  NotificationService.instance.init().then((_) {
+    _setupNotificationRouting();
+    // Clear badge when app starts
+    NotificationService.instance.clearBadge();
+  });
 
   // If session already exists (returning user), signedIn may not re-fire,
   // so we trigger the FCM token save directly here as well.
