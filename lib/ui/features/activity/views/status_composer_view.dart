@@ -1571,6 +1571,7 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
   int _camIndex = 0;
   bool _initializing = true;
   bool _capturing = false;
+  bool _flashOn = false;
   String? _error;
   double _currentZoom = 1.0;
   double _maxZoom = 1.0;
@@ -1646,12 +1647,32 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     await _startController(_cameras[_camIndex]);
   }
 
+  Future<void> _toggleFlash() async {
+    final cam = _camera;
+    if (cam == null || !cam.value.isInitialized) return;
+    HapticFeedback.selectionClick();
+    try {
+      final newFlashMode = _flashOn ? FlashMode.off : FlashMode.torch;
+      await cam.setFlashMode(newFlashMode);
+      setState(() => _flashOn = !_flashOn);
+    } catch (_) {}
+  }
+
   Future<void> _setZoom(double zoom) async {
     final cam = _camera;
     if (cam == null || !cam.value.isInitialized) return;
     final clampedZoom = zoom.clamp(_minZoom, _maxZoom);
     await cam.setZoomLevel(clampedZoom);
     setState(() => _currentZoom = clampedZoom);
+  }
+
+  void _handleScaleUpdate(ScaleUpdateDetails details) {
+    if (details.scale > 1.0) {
+      _setZoom(_currentZoom * (1.0 + (details.scale - 1.0) * 0.1));
+    } else if (details.scale < 1.0) {
+      final newZoom = _currentZoom * details.scale;
+      _setZoom(newZoom);
+    }
   }
 
   Future<void> _capture() async {
@@ -1700,11 +1721,7 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
                     width: _camera!.value.previewSize!.height,
                     height: _camera!.value.previewSize!.width,
                     child: GestureDetector(
-                      onScaleUpdate: (details) {
-                        if (details.scale > 1.0) {
-                          _setZoom(_currentZoom * details.scale);
-                        }
-                      },
+                      onScaleUpdate: _handleScaleUpdate,
                       child: CameraPreview(_camera!),
                     ),
                   ),
@@ -1825,55 +1842,39 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
                 ),
               ),
 
+              // ── Botão flash (canto superior direito) ────────────────────
+              Positioned(
+                top: topPad + 54,
+                right: 12,
+                child: GestureDetector(
+                  onTap: _toggleFlash,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _flashOn
+                          ? Colors.amber.withValues(alpha: 0.8)
+                          : Colors.black.withValues(alpha: 0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _flashOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+
               // ── Controles de câmera (trocar câmera + shutter) ────────────
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: bottomPad + 100,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Zoom slider
-                    if (_camera != null && _camera!.value.isInitialized)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Column(
-                          children: [
-                            Text(
-                              '${(_currentZoom).toStringAsFixed(1)}x',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            SliderTheme(
-                              data: SliderThemeData(
-                                trackHeight: 3,
-                                thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: 6,
-                                ),
-                                activeTrackColor: Colors.white,
-                                inactiveTrackColor:
-                                    Colors.white.withValues(alpha: 0.3),
-                                thumbColor: Colors.white,
-                              ),
-                              child: Slider(
-                                value: _currentZoom,
-                                min: _minZoom,
-                                max: _maxZoom,
-                                onChanged: _setZoom,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 24),
-                    // Câmera + Shutter + Skip
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
                         // Botão trocar câmera
                         if (_cameras.length > 1)
                           Padding(
@@ -1938,8 +1939,6 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
                         const SizedBox(width: 62),
                       ],
                     ),
-                  ],
-                ),
               ),
 
               // ── Botão "Só postar" (embaixo) ─────────────────────────────
