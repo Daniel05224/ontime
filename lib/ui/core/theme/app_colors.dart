@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Semantic color tokens for the OnTime design system.
+/// Semantic color tokens for the VibeTime design system.
 ///
 /// Style direction: "Vibrant & Block-based" on a true-dark canvas.
 /// A violet → pink duotone carries the brand, cyan + neon-green add energy.

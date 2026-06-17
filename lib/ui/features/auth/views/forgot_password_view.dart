@@ -6,7 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/animations.dart';
 import 'auth_shared.dart';
 
-const _redirectUrl = 'com.example.ontime://login-callback';
+const _redirectUrl = 'com.tenco.ontime://login-callback';
 
 class ForgotPasswordView extends StatefulWidget {
   const ForgotPasswordView({super.key});
@@ -81,7 +81,7 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                   ),
                   const SizedBox(height: 32),
 
-                  const Center(child: OnTimeHero()),
+                  const Center(child: VibeTimeHero()),
                   const SizedBox(height: 52),
 
                   EntranceFade(

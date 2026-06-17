@@ -67,7 +67,7 @@ class _OnboardingViewState extends State<OnboardingView>
     _Slide(
       icon: Icons.bolt_rounded,
       color: AppColors.primary,
-      title: 'Bem-vindo ao OnTime!',
+      title: 'Bem-vindo ao VibeTime!',
       subtitle:
           'Saiba o que seus amigos estão fazendo agora, em tempo real. Nada de notícias de ontem.',
       illustrationBuilder: _buildSlide1,

@@ -309,7 +309,6 @@ class _StoryPageState extends State<_StoryPage>
   String? _myEmoji;
   bool _busy = false;
   bool _showPicker = false;
-  bool _poked = false;
   bool _deleting = false;
 
   bool get _isOwn =>
@@ -401,15 +400,6 @@ class _StoryPageState extends State<_StoryPage>
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Future<void> _poke() async {
-    if (_poked) return;
-    HapticFeedback.mediumImpact();
-    setState(() => _poked = true);
-    SupabaseChatService.instance.sendPoke(widget.user.id);
-    await Future.delayed(const Duration(milliseconds: 2600));
-    if (mounted) setState(() => _poked = false);
   }
 
   void _editStory() {
@@ -566,7 +556,7 @@ class _StoryPageState extends State<_StoryPage>
                           : const SizedBox(width: double.infinity),
                     ),
                     const SizedBox(height: 16),
-                    _ActionRow(accent: accent, poked: _poked, onPoke: _poke, onChat: _openChat),
+                    _ActionRow(accent: accent, onChat: _openChat, streak: widget.user.streak),
                   ],
                 ] else ...[
                   if (_isOwn)
@@ -586,7 +576,7 @@ class _StoryPageState extends State<_StoryPage>
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _ActionRow(accent: accent, poked: _poked, onPoke: _poke, onChat: _openChat),
+                    _ActionRow(accent: accent, onChat: _openChat, streak: widget.user.streak),
                   ],
                 ],
               ],
@@ -640,47 +630,18 @@ class _StoryHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            name,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.3,
-                              shadows: [
-                                Shadow(blurRadius: 8, color: Colors.black54),
-                              ],
-                            ),
-                          ),
-                        ),
-                        if (user.streak > 0) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color:
-                                  const Color(0xFFFF6500).withValues(alpha: 0.25),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                  color: const Color(0xFFFF6500)
-                                      .withValues(alpha: 0.6)),
-                            ),
-                            child: Text(
-                              '🔥 ${user.streak}',
-                              style: const TextStyle(
-                                color: Colors.orange,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
+                    Text(
+                      name,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.3,
+                        shadows: [
+                          Shadow(blurRadius: 8, color: Colors.black54),
                         ],
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -995,21 +956,19 @@ class _EmojiPicker extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Action row: message + poke
+// Action row: message + streak fire
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ActionRow extends StatelessWidget {
   const _ActionRow({
     required this.accent,
-    required this.poked,
-    required this.onPoke,
     required this.onChat,
+    required this.streak,
   });
 
   final Color accent;
-  final bool poked;
-  final VoidCallback onPoke;
   final VoidCallback onChat;
+  final int streak;
 
   @override
   Widget build(BuildContext context) {
@@ -1050,47 +1009,13 @@ class _ActionRow extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          flex: 2,
-          child: GestureDetector(
-            onTap: onPoke,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: AnimatedContainer(
-                  duration: AppMotion.fast,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    gradient: poked ? AppColors.duotone(accent) : null,
-                    color: poked ? null : Colors.white.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: poked
-                          ? Colors.transparent
-                          : Colors.white.withValues(alpha: 0.28),
-                    ),
-                  ),
-                  child: Center(
-                    child: AnimatedSwitcher(
-                      duration: AppMotion.fast,
-                      child: Text(
-                        poked ? 'Enviado! 🤔' : 'O que faz? 🤔',
-                        key: ValueKey(poked),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+        if (streak > 0) ...[
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: _StreakFire(streak: streak),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -1369,6 +1294,53 @@ class _GlassIconButton extends StatelessWidget {
               border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
             ),
             child: Icon(icon, color: Colors.white, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Streak indicator: a flame with the streak number in its center.
+/// Streak display: flame on top, number below — clearly readable.
+class _StreakFire extends StatelessWidget {
+  const _StreakFire({required this.streak});
+  final int streak;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF2A1000), Color(0xFF1A0800)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFFF6500).withValues(alpha: 0.6),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('🔥', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 5),
+              Text(
+                '$streak',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                ),
+              ),
+            ],
           ),
         ),
       ),

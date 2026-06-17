@@ -109,7 +109,7 @@ class _LoginViewState extends State<LoginView> {
                   const SizedBox(height: 48),
 
                   // ── Logo ──────────────────────────────────────────────
-                  const Center(child: OnTimeHero()),
+                  const Center(child: VibeTimeHero()),
 
                   const SizedBox(height: 52),
 

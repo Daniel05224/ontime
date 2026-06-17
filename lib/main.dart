@@ -158,7 +158,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'OnTime',
+      title: 'VibeTime',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
       navigatorKey: _navKey,
@@ -313,7 +313,7 @@ class _SplashScreenState extends State<_SplashScreen>
                         end: Alignment.centerRight,
                       ).createShader(bounds),
                       child: const Text(
-                        'OnTime',
+                        'VibeTime',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 48,

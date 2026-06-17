@@ -110,10 +110,10 @@ class _Orb extends StatelessWidget {
   }
 }
 
-// ── OnTime logomark + tagline ──────────────────────────────────────────────────
+// ── VibeTime logomark + tagline ──────────────────────────────────────────────────
 
-class OnTimeHero extends StatelessWidget {
-  const OnTimeHero({super.key});
+class VibeTimeHero extends StatelessWidget {
+  const VibeTimeHero({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +138,7 @@ class OnTimeHero extends StatelessWidget {
           child: ShaderMask(
             shaderCallback: (b) => AppColors.brandGradient.createShader(b),
             child: const Text(
-              'OnTime',
+              'VibeTime',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 42,

@@ -30,9 +30,9 @@ class NotificationService {
   /// Called when user taps the "o que está fazendo?" expiry notification.
   VoidCallback? onExpiryTap;
 
-  static const _msgChannelId = 'ontime_messages';
+  static const _msgChannelId = 'vibetime_messages';
   static const _msgChannelName = 'Mensagens';
-  static const _expiryChannelId = 'ontime_expiry';
+  static const _expiryChannelId = 'vibetime_expiry';
   static const _expiryChannelName = 'Atividade';
   static const _expiryNotifId = 42;
 
@@ -45,7 +45,7 @@ class NotificationService {
       requestBadgePermission: false,
       requestSoundPermission: false,
       defaultPresentAlert: true,
-      defaultPresentBadge: true,
+      defaultPresentBadge: false, // never let local notifications touch the badge
       defaultPresentSound: true,
     );
     await _local.initialize(
@@ -138,10 +138,10 @@ class NotificationService {
     } catch (_) {}
   }
 
-  /// Clears all message notifications and resets badge.
+  /// Clears all pending/delivered local notifications.
+  /// Badge reset on iOS is handled natively in AppDelegate.applicationDidBecomeActive.
   Future<void> clearBadge() async {
     try {
-      // Cancel all local notifications (scheduled and delivered)
       await _local.cancelAll();
     } catch (_) {}
   }
@@ -221,7 +221,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(
           presentAlert: true,
-          presentBadge: true,
+          presentBadge: false,
           presentSound: true,
         ),
       ),
@@ -252,7 +252,7 @@ class NotificationService {
           _expiryChannelName,
           importance: Importance.defaultImportance,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(presentBadge: false),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       payload: jsonEncode({'type': 'expiry'}),

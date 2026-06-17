@@ -19,7 +19,7 @@ import '../../../core/theme/app_motion.dart';
 import '../../../core/widgets/animations.dart';
 import '../../../core/widgets/inactive_poke_section.dart';
 import '../../../core/widgets/live_photo_card.dart';
-import '../../../core/widgets/pulse_feed.dart';
+import '../../../core/widgets/story_deck_feed.dart';
 import '../../../core/widgets/story_viewer.dart';
 import '../../activity/views/status_composer_view.dart';
 import '../../profile/views/profile_view.dart';
@@ -78,7 +78,7 @@ class FriendsView extends StatelessWidget {
                                         onChat: (friend) =>
                                             _openChatFromFriends(context, friend),
                                       )
-                                    : PulseFeed(
+                                    : StoryDeckFeed(
                                         friends: viewModel.loading
                                             ? const []
                                             : viewModel.friends,
@@ -320,7 +320,7 @@ class _Header extends StatelessWidget {
                 shaderCallback: (bounds) =>
                     AppColors.brandGradient.createShader(bounds),
                 child: const Text(
-                  'OnTime',
+                  'VibeTime',
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w900,
@@ -413,11 +413,11 @@ class _InviteFriendsEmptyState extends State<_InviteFriendsEmpty>
   )..repeat(reverse: true);
 
   static const _shareMessage =
-      'Ei, baixa o OnTime! 👋\n\n'
+      'Ei, baixa o VibeTime! 👋\n\n'
       'É um app onde você compartilha o que está fazendo agora em tempo real com seus amigos. '
       'Dá pra ver o que cada um está aprontando, mandar cutucadas e conversar na hora. '
       'Me adiciona lá! 😄\n\n'
-      '📲 apps.apple.com/app/ontime';
+      '📲 apps.apple.com/app/vibetime';
 
   Future<void> _shareWhatsApp() async {
     HapticFeedback.mediumImpact();
@@ -560,7 +560,7 @@ class _InviteFriendsEmptyState extends State<_InviteFriendsEmpty>
             const EntranceFade(
               index: 1,
               child: Text(
-                'O OnTime é muito melhor com amigos.\nVeja o que eles estão fazendo agora, mande cutucadas e converse em tempo real.',
+                'O VibeTime é muito melhor com amigos.\nVeja o que eles estão fazendo agora, mande cutucadas e converse em tempo real.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppColors.textSecondary,
@@ -827,7 +827,7 @@ class _ReciprocityGateState extends State<_ReciprocityGate> {
               const EntranceFade(
                 index: 2,
                 child: Text(
-                  'O OnTime é em tempo real. Conte o que você está '
+                  'O VibeTime é em tempo real. Conte o que você está '
                   'fazendo agora para desbloquear o que seus amigos estão vivendo.',
                   textAlign: TextAlign.center,
                   style: TextStyle(

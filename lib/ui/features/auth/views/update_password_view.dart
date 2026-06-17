@@ -86,7 +86,7 @@ class _UpdatePasswordViewState extends State<UpdatePasswordView> {
                 children: [
                   const SizedBox(height: 72),
 
-                  const Center(child: OnTimeHero()),
+                  const Center(child: VibeTimeHero()),
                   const SizedBox(height: 52),
 
                   EntranceFade(

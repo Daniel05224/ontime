@@ -96,7 +96,7 @@ class _SignupViewState extends State<SignupView> {
                           shaderCallback: (b) =>
                               AppColors.brandGradient.createShader(b),
                           child: const Text(
-                            'OnTime',
+                            'VibeTime',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -138,7 +138,7 @@ class _SignupViewState extends State<SignupView> {
                         children: [
                           TextSpan(text: 'Junte-se ao '),
                           TextSpan(
-                            text: 'OnTime',
+                            text: 'VibeTime',
                             style: TextStyle(
                               color: AppColors.primaryBright,
                               fontWeight: FontWeight.w700,

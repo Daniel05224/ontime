@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import 'app_motion.dart';
 
-/// Central ThemeData for OnTime. Geometric-modern type (Outfit) on a vibrant
+/// Central ThemeData for VibeTime. Geometric-modern type (Outfit) on a vibrant
 /// dark canvas, with semantic tokens wired into Material's color scheme.
 abstract final class AppTheme {
   static ThemeData dark() {

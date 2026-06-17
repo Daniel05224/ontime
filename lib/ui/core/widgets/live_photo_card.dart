@@ -558,30 +558,6 @@ class _CardFooter extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // ── Streak ───────────────────────────────────────────────────────
-          if (user.streak > 0)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF6500).withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(Radii.pill),
-                  border: Border.all(
-                    color: const Color(0xFFFF6500).withValues(alpha: 0.55),
-                  ),
-                ),
-                child: Text(
-                  '🔥 ${user.streak} ${user.streak == 1 ? "dia" : "dias"}',
-                  style: const TextStyle(
-                    color: Colors.orange,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-
           // ── Reactions ────────────────────────────────────────────────────
           _ReactionRow(
             accent: accent,
@@ -695,6 +671,7 @@ class _CardFooter extends StatelessWidget {
             poked: poked,
             onPoke: onPoke,
             onChat: onChat,
+            streak: user.streak,
           ),
         ],
 
@@ -724,18 +701,19 @@ class _CardActionRow extends StatelessWidget {
     required this.poked,
     required this.onPoke,
     required this.onChat,
+    required this.streak,
   });
 
   final Color accent;
   final bool poked;
   final VoidCallback? onPoke;
   final VoidCallback? onChat;
+  final int streak;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // Chat — CTA primário com gradiente
         Expanded(
           flex: 3,
           child: GestureDetector(
@@ -756,8 +734,7 @@ class _CardActionRow extends StatelessWidget {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.chat_bubble_rounded,
-                      color: Colors.white, size: 18),
+                  Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 18),
                   SizedBox(width: 8),
                   Text(
                     'Mensagem',
@@ -773,53 +750,53 @@ class _CardActionRow extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        // Cutucar — ação secundária, vira gradiente quando ativada
-        Expanded(
-          flex: 2,
-          child: GestureDetector(
-            onTap: onPoke,
-            child: AnimatedContainer(
-              duration: AppMotion.fast,
-              height: 48,
-              decoration: BoxDecoration(
-                gradient: poked ? AppColors.duotone(accent) : null,
-                color:
-                    poked ? null : Colors.white.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(Radii.lg),
-                border: Border.all(
-                  color: poked
-                      ? Colors.transparent
-                      : Colors.white.withValues(alpha: 0.28),
-                ),
-                boxShadow: poked
-                    ? [
-                        BoxShadow(
-                          color: accent.withValues(alpha: 0.50),
-                          blurRadius: 18,
-                          offset: const Offset(0, 5),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: AnimatedSwitcher(
-                  duration: AppMotion.fast,
-                  child: Text(
-                    poked ? 'Enviado! 🤔' : 'O que faz? 🤔',
-                    key: ValueKey(poked),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
+        if (streak > 0) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: _StreakFireCard(streak: streak),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _StreakFireCard extends StatelessWidget {
+  const _StreakFireCard({required this.streak});
+  final int streak;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF2A1000), Color(0xFF1A0800)],
+        ),
+        borderRadius: BorderRadius.circular(Radii.lg),
+        border: Border.all(
+          color: const Color(0xFFFF6500).withValues(alpha: 0.6),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('🔥', style: TextStyle(fontSize: 18)),
+          const SizedBox(width: 5),
+          Text(
+            '$streak',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              height: 1,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

@@ -169,7 +169,7 @@ class _ProfileViewState extends State<ProfileView> {
       icon: Icons.logout_rounded,
       iconColor: AppColors.textSecondary,
       title: 'Sair da conta?',
-      message: 'Você precisará fazer login novamente para acessar o OnTime.',
+      message: 'Você precisará fazer login novamente para acessar o VibeTime.',
       confirmLabel: 'Sair',
       confirmColor: AppColors.textSecondary,
     );

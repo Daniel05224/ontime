@@ -1090,11 +1090,11 @@ class _EmptyFriendsState extends State<_EmptyFriends>
   )..repeat(reverse: true);
 
   static const _shareText =
-      'Ei, baixa o OnTime! 👋\n\n'
+      'Ei, baixa o VibeTime! 👋\n\n'
       'É um app onde você compartilha o que está fazendo agora em tempo real com seus amigos usando as VIBES — '
       'tipo um status ao vivo. Dá pra ver o que cada um está aprontando, mandar cutucadas, '
       'reagir e trocar mensagem na hora. Chega de mandar "oi, o que está fazendo?" Me adicione lá 😄\n\n'
-      '📲 Baixe grátis: https://apps.apple.com/app/ontime';
+      '📲 Baixe grátis: https://apps.apple.com/app/vibetime';
 
   Future<void> _shareWhatsApp() async {
     HapticFeedback.mediumImpact();
@@ -1230,7 +1230,7 @@ class _EmptyFriendsState extends State<_EmptyFriends>
             const EntranceFade(
               index: 1,
               child: Text(
-                'O OnTime é muito melhor com amigos.\nVeja o que eles estão fazendo agora, mande cutucadas e converse em tempo real.',
+                'O VibeTime é muito melhor com amigos.\nVeja o que eles estão fazendo agora, mande cutucadas e converse em tempo real.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppColors.textSecondary,

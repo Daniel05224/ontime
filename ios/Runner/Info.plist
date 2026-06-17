@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Ontime</string>
+	<string>VibeTime</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>ontime</string>
+	<string>vibetime</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -45,9 +45,9 @@
 		<string>_https._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>O OnTime usa a câmera para tirar fotos do que você está fazendo agora.</string>
+	<string>O VibeTime usa a câmera para tirar fotos do que você está fazendo agora.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>O OnTime usa a rede local para sincronizar atualizações em tempo real com seus amigos.</string>
+	<string>O VibeTime usa a rede local para sincronizar atualizações em tempo real com seus amigos.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
