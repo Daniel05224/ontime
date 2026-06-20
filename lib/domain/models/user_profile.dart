@@ -32,11 +32,11 @@ class UserProfile {
   }
 
   Activity? get currentActivity {
-    // Status ao vivo tem prioridade absoluta sobre day_plan
+    // Status ao vivo tem prioridade: ativo enquanto não expirou
     for (final activity in routine) {
-      if (activity.isLive && activity.isActiveNow) return activity;
+      if (activity.isLive && !activity.isExpired) return activity;
     }
-    // Sem status: usa day_plan do período atual
+    // Sem status ao vivo: usa day_plan do período atual
     for (final activity in routine) {
       if (!activity.isLive && activity.isActiveNow) return activity;
     }

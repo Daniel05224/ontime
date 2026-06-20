@@ -10,16 +10,44 @@ import UserNotifications
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     FirebaseApp.configure()
+
+    // Reset badge immediately on every launch — before FCM or anything else runs
+    application.applicationIconBadgeNumber = 0
+
+    // Become the UNUserNotificationCenter delegate so we can intercept
+    // foreground notifications and prevent badge from ever being set
+    UNUserNotificationCenter.current().delegate = self
+
     application.registerForRemoteNotifications()
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  // Called when a notification arrives while the app is in the FOREGROUND.
+  // We show banner + sound but never touch the badge.
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    if #available(iOS 14.0, *) {
+      completionHandler([.banner, .sound])
+    } else {
+      completionHandler([.alert, .sound])
+    }
+    // Immediately wipe any badge the notification payload may have included
+    clearBadge(UIApplication.shared)
+  }
+
   override func applicationDidBecomeActive(_ application: UIApplication) {
     super.applicationDidBecomeActive(application)
     clearBadge(application)
-    // Delayed clear covers any race with Flutter plugin initialization
+    // Second clear covers races with Flutter/FCM initialization
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+      self.clearBadge(application)
+    }
+    // Third clear at 2s to catch any delayed FCM registration notification
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
       self.clearBadge(application)
     }
   }

@@ -85,6 +85,10 @@ class FriendsView extends StatelessWidget {
                                         self: canSeeFriends ? currentUser : null,
                                         onSelfTap: () =>
                                             _openMyStory(context, currentUser),
+                                        onReport: (userId) =>
+                                            viewModel.reportUser(userId),
+                                        onBlock: (userId) =>
+                                            viewModel.blockUser(userId),
                                       ),
                           ),
                         ),
@@ -270,6 +274,54 @@ class _Header extends StatelessWidget {
   const _Header({required this.activeCount});
   final int activeCount;
 
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 4, 16, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ShaderMask(
+                  shaderCallback: (bounds) =>
+                      AppColors.brandGradient.createShader(bounds),
+                  child: const Text(
+                    'VibeTime',
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: -1.2,
+                    ),
+                  ),
+                ),
+                Text(
+                  activeCount > 0
+                      ? '$activeCount ${activeCount == 1 ? "amigo ativo" : "amigos ativos"} agora'
+                      : 'Ninguém ativo no momento',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const _HeaderIcons(),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderIcons extends StatelessWidget {
+  const _HeaderIcons();
+
   void _openFriendSearch(BuildContext context) {
     HapticFeedback.selectionClick();
     Navigator.of(context).push(
@@ -304,61 +356,24 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pendingCount = context.watch<FeedViewModel>().pendingCount;
-    final unreadDMs = context.watch<SocialHubViewModel>().unreadMessages;
-    final socialBadge = pendingCount + unreadDMs;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ShaderMask(
-                shaderCallback: (bounds) =>
-                    AppColors.brandGradient.createShader(bounds),
-                child: const Text(
-                  'VibeTime',
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: -1.2,
-                  ),
-                ),
-              ),
-              Text(
-                activeCount > 0
-                    ? '$activeCount ${activeCount == 1 ? "amigo ativo" : "amigos ativos"} agora'
-                    : 'Ninguém ativo no momento',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              _HeaderIcon(
-                icon: Icons.search_rounded,
-                label: 'Buscar amigos',
-                onTap: () => _openFriendSearch(context),
-              ),
-              const SizedBox(width: 10),
-              _SocialHubIcon(
-                badge: socialBadge,
-                onTap: () => _openSocialHub(context),
-              ),
-              const SizedBox(width: 10),
-              _ProfileIcon(pendingCount: 0),
-            ],
-          ),
-        ],
-      ),
+    final socialBadge = context.watch<FeedViewModel>().pendingCount +
+        context.watch<SocialHubViewModel>().unreadMessages;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _HeaderIcon(
+          icon: Icons.search_rounded,
+          label: 'Buscar amigos',
+          onTap: () => _openFriendSearch(context),
+        ),
+        const SizedBox(width: 10),
+        _SocialHubIcon(
+          badge: socialBadge,
+          onTap: () => _openSocialHub(context),
+        ),
+        const SizedBox(width: 10),
+        const _ProfileIcon(pendingCount: 0),
+      ],
     );
   }
 }

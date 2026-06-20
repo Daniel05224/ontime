@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,6 +20,7 @@ class _SignupViewState extends State<SignupView> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
+  bool _acceptedTerms = false;
   bool _loading = false;
   String? _error;
 
@@ -35,6 +37,10 @@ class _SignupViewState extends State<SignupView> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     if (name.isEmpty || email.isEmpty || password.isEmpty) return;
+    if (!_acceptedTerms) {
+      setState(() => _error = 'Você precisa aceitar os Termos de Uso para continuar.');
+      return;
+    }
 
     HapticFeedback.mediumImpact();
     setState(() { _loading = true; _error = null; });
@@ -52,6 +58,15 @@ class _SignupViewState extends State<SignupView> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _showTerms(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _TermsSheet(),
+    );
   }
 
   String _translateError(String message) => switch (message.toLowerCase()) {
@@ -223,33 +238,81 @@ class _SignupViewState extends State<SignupView> {
 
                   const SizedBox(height: 20),
 
-                  // ── Terms ─────────────────────────────────────────────
+                  // ── Terms checkbox ────────────────────────────────────
                   EntranceFade(
                     index: 8,
-                    child: Center(
-                      child: Text.rich(
-                        const TextSpan(
-                          style: TextStyle(
-                            color: AppColors.textTertiary,
-                            fontSize: 12,
-                            height: 1.6,
+                    child: GestureDetector(
+                      onTap: () =>
+                          setState(() => _acceptedTerms = !_acceptedTerms),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AnimatedContainer(
+                            duration: AppMotion.fast,
+                            width: 22,
+                            height: 22,
+                            margin: const EdgeInsets.only(top: 1),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(6),
+                              gradient: _acceptedTerms
+                                  ? AppColors.brandGradient
+                                  : null,
+                              color: _acceptedTerms
+                                  ? null
+                                  : Colors.white.withValues(alpha: 0.08),
+                              border: Border.all(
+                                color: _acceptedTerms
+                                    ? AppColors.primaryBright
+                                    : Colors.white.withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: _acceptedTerms
+                                ? const Icon(Icons.check_rounded,
+                                    color: Colors.white, size: 14)
+                                : null,
                           ),
-                          children: [
-                            TextSpan(
-                                text:
-                                    'Ao criar uma conta você concorda com os '),
-                            TextSpan(
-                              text: 'Termos de Uso',
-                              style: TextStyle(color: AppColors.primaryBright),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 13,
+                                  height: 1.5,
+                                ),
+                                children: [
+                                  const TextSpan(text: 'Li e aceito os '),
+                                  TextSpan(
+                                    text: 'Termos de Uso',
+                                    style: const TextStyle(
+                                      color: AppColors.primaryBright,
+                                      fontWeight: FontWeight.w700,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor: AppColors.primaryBright,
+                                    ),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = () => _showTerms(context),
+                                  ),
+                                  const TextSpan(text: ' e a '),
+                                  TextSpan(
+                                    text: 'Política de Privacidade',
+                                    style: const TextStyle(
+                                      color: AppColors.primaryBright,
+                                      fontWeight: FontWeight.w700,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor: AppColors.primaryBright,
+                                    ),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = () => _showTerms(context),
+                                  ),
+                                  const TextSpan(
+                                    text: '. Não toleramos conteúdo ofensivo ou comportamento abusivo.',
+                                  ),
+                                ],
+                              ),
                             ),
-                            TextSpan(text: ' e a '),
-                            TextSpan(
-                              text: 'Política de Privacidade',
-                              style: TextStyle(color: AppColors.primaryBright),
-                            ),
-                          ],
-                        ),
-                        textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -353,6 +416,152 @@ class _PasswordHintState extends State<_PasswordHint> {
           child: Text(_label),
         ),
       ],
+    );
+  }
+}
+
+// ── Terms of Use sheet ────────────────────────────────────────────────────────
+
+class _TermsSheet extends StatelessWidget {
+  const _TermsSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, controller) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF12121F),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Termos de Uso & Privacidade',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const Divider(color: Colors.white12, height: 24),
+            Expanded(
+              child: ListView(
+                controller: controller,
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                children: const [
+                  _TermsSection(
+                    title: '1. Aceitação dos Termos',
+                    body:
+                        'Ao criar uma conta no VibeTime, você concorda com estes Termos de Uso e com nossa Política de Privacidade. Se não concordar, não utilize o aplicativo.',
+                  ),
+                  _TermsSection(
+                    title: '2. Conteúdo do Usuário',
+                    body:
+                        'Você é responsável por todo conteúdo que publicar. É estritamente proibido compartilhar conteúdo ofensivo, sexual explícito, que incite violência, discriminação ou que viole leis aplicáveis.',
+                  ),
+                  _TermsSection(
+                    title: '3. Tolerância Zero',
+                    body:
+                        'Não toleramos conteúdo inapropriado ou comportamento abusivo. Usuários que violarem estas regras terão sua conta suspensa ou permanentemente banida.',
+                  ),
+                  _TermsSection(
+                    title: '4. Denúncias e Moderação',
+                    body:
+                        'Qualquer usuário pode denunciar conteúdo inapropriado. Nossa equipe analisa todas as denúncias em até 24 horas e remove conteúdo e usuários que violem nossas regras.',
+                  ),
+                  _TermsSection(
+                    title: '5. Bloqueio de Usuários',
+                    body:
+                        'Você pode bloquear outros usuários a qualquer momento. Usuários bloqueados são removidos instantaneamente do seu feed e não podem interagir com você.',
+                  ),
+                  _TermsSection(
+                    title: '6. Privacidade de Dados',
+                    body:
+                        'Coletamos apenas os dados necessários para o funcionamento do app (nome, e-mail, fotos publicadas). Não vendemos seus dados a terceiros. Você pode solicitar a exclusão da sua conta e dados a qualquer momento.',
+                  ),
+                  _TermsSection(
+                    title: '7. Contato',
+                    body:
+                        'Para dúvidas, denúncias ou solicitações relacionadas à privacidade, entre em contato: suporte@vibetime.app',
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  24, 0, 24, MediaQuery.of(context).padding.bottom + 16),
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: double.infinity,
+                  height: 52,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.brandGradient,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Text(
+                    'Entendido',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TermsSection extends StatelessWidget {
+  const _TermsSection({required this.title, required this.body});
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            body,
+            style: const TextStyle(
+              color: Colors.white60,
+              fontSize: 13,
+              height: 1.6,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

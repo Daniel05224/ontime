@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../data/services/demo_mode.dart';
 import '../../../../data/services/notification_service.dart';
 import '../../../../data/services/supabase_chat_service.dart';
 import '../../../../data/services/supabase_friend_service.dart';
+import '../../../../data/services/supabase_moderation_service.dart';
 import '../../../../data/services/supabase_status_service.dart';
 import '../../../../domain/models/user_profile.dart';
 
@@ -31,6 +33,7 @@ class FeedViewModel extends ChangeNotifier {
 
   List<UserProfile> _friends = [];
   List<PendingRequest> _pendingRequests = [];
+  final Set<String> _blockedIds = {};
   bool _loading = true;
   bool _initialized = false;
   bool _canSeeFriends = false;
@@ -41,16 +44,27 @@ class FeedViewModel extends ChangeNotifier {
   late final StreamSubscription<AuthState> _authSub;
   Timer? _expiryTimer;
 
-  List<UserProfile> get friends => _friends;
+  List<UserProfile> get friends => DemoMode.instance.isActive
+      ? DemoMode.friends
+      : _friends.where((f) => !_blockedIds.contains(f.id)).toList();
   List<PendingRequest> get pendingRequests => _pendingRequests;
   int get pendingCount => _pendingRequests.length;
   bool get loading => _loading;
-  bool get canSeeFriends => _canSeeFriends;
+  bool get canSeeFriends => DemoMode.instance.isActive ? true : _canSeeFriends;
   bool get loadError => _loadError;
 
   Future<void> _setup() async {
-    // Roda em background — não bloqueia o feed
+    if (DemoMode.instance.isActive) {
+      _loading = false;
+      _initialized = true;
+      notifyListeners();
+      return;
+    }
+
     SupabaseChatService.instance.cleanupOldMessages();
+
+    final blocked = await SupabaseModerationService.instance.getBlockedIds();
+    _blockedIds.addAll(blocked);
 
     await Future.wait([_refresh(), _loadPendingRequests()]);
 
@@ -65,6 +79,7 @@ class FeedViewModel extends ChangeNotifier {
   void _clear() {
     _friends = [];
     _pendingRequests = [];
+    _blockedIds.clear();
     _canSeeFriends = false;
     _loading = false;
     _initialized = false;
@@ -175,9 +190,19 @@ class FeedViewModel extends ChangeNotifier {
   }
 
   Future<void> removeFriend(String userId) async {
-    // Optimistic removal — Realtime will confirm
     _friends = _friends.where((f) => f.id != userId).toList();
     notifyListeners();
+    await SupabaseFriendService.instance.removeFriend(userId);
+  }
+
+  Future<void> reportUser(String userId) async {
+    await SupabaseModerationService.instance.reportUser(userId);
+  }
+
+  Future<void> blockUser(String userId) async {
+    _blockedIds.add(userId);
+    notifyListeners();
+    await SupabaseModerationService.instance.blockUser(userId);
     await SupabaseFriendService.instance.removeFriend(userId);
   }
 

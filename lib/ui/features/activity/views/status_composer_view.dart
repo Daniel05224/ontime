@@ -1591,8 +1591,8 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
 
   Future<void> _setupCamera() async {
     try {
-      _cameras = await availableCameras();
-      if (_cameras.isEmpty) {
+      final all = await availableCameras();
+      if (all.isEmpty) {
         if (mounted) {
           setState(() {
             _initializing = false;
@@ -1601,6 +1601,18 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
         }
         return;
       }
+
+      // Keep only the first back camera and the first front camera (no ultra-wide)
+      final back = all.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => all.first,
+      );
+      final front = all.cast<CameraDescription?>().firstWhere(
+        (c) => c!.lensDirection == CameraLensDirection.front,
+        orElse: () => null,
+      );
+      _cameras = [back, if (front != null) front];
+
       _camIndex = _cameras.indexWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
       );

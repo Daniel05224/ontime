@@ -1,6 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
     <application
-        android:label="ontime"
+        android:label="VibeTime"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -28,7 +36,7 @@
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="com.example.ontime"/>
+                <data android:scheme="com.tenco.ontime"/>
             </intent-filter>
         </activity>
         <!-- Ícone e cor padrão para notificações FCM -->

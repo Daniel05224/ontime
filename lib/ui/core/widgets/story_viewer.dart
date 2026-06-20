@@ -27,16 +27,22 @@ class StoryViewer extends StatefulWidget {
     super.key,
     required this.stories,
     this.initialIndex = 0,
+    this.onReport,
+    this.onBlock,
   });
 
   final List<UserProfile> stories;
   final int initialIndex;
+  final void Function(String userId)? onReport;
+  final void Function(String userId)? onBlock;
 
   /// Opens the viewer as a full-screen fade route.
   static Future<void> open(
     BuildContext context, {
     required List<UserProfile> stories,
     int initialIndex = 0,
+    void Function(String userId)? onReport,
+    void Function(String userId)? onBlock,
   }) {
     HapticFeedback.selectionClick();
     return Navigator.of(context).push(PageRouteBuilder(
@@ -47,6 +53,8 @@ class StoryViewer extends StatefulWidget {
       pageBuilder: (_, __, ___) => StoryViewer(
         stories: stories,
         initialIndex: initialIndex,
+        onReport: onReport,
+        onBlock: onBlock,
       ),
       transitionsBuilder: (ctx, anim, _, child) {
         if (AppMotion.reduced(ctx)) {
@@ -69,21 +77,14 @@ class StoryViewer extends StatefulWidget {
 }
 
 class _StoryViewerState extends State<StoryViewer> {
-  // Rotate list so the tapped story is always at index 0 (leftmost bar,
-  // leftmost page). Drag left = advance to the next friend. Always.
-  late final List<UserProfile> _stories = _rotate();
-  late final PageController _controller = PageController(initialPage: 0);
-  int _index = 0;
+  late final List<UserProfile> _stories = widget.stories;
+  late final int _initialPage =
+      widget.initialIndex.clamp(0, widget.stories.length - 1);
+  late final PageController _controller =
+      PageController(initialPage: _initialPage);
+  late int _index = _initialPage;
   double _dragDy = 0;
   bool _popping = false;
-
-  List<UserProfile> _rotate() {
-    final k = widget.initialIndex.clamp(0, widget.stories.length - 1);
-    return [
-      ...widget.stories.sublist(k),
-      ...widget.stories.sublist(0, k),
-    ];
-  }
 
   @override
   void initState() {
@@ -163,7 +164,11 @@ class _StoryViewerState extends State<StoryViewer> {
                           ),
                         );
                       },
-                      child: _StoryPage(user: _stories[i]),
+                      child: _StoryPage(
+                        user: _stories[i],
+                        onReport: widget.onReport,
+                        onBlock: widget.onBlock,
+                      ),
                     );
                   },
                 ),
@@ -296,8 +301,14 @@ String _elapsed(DateTime since) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _StoryPage extends StatefulWidget {
-  const _StoryPage({required this.user});
+  const _StoryPage({
+    required this.user,
+    this.onReport,
+    this.onBlock,
+  });
   final UserProfile user;
+  final void Function(String userId)? onReport;
+  final void Function(String userId)? onBlock;
 
   @override
   State<_StoryPage> createState() => _StoryPageState();
@@ -434,6 +445,31 @@ class _StoryPageState extends State<_StoryPage>
     }
   }
 
+  void _showModerationSheet() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ModerationSheet(
+        userName: widget.user.name,
+        onReport: widget.onReport == null
+            ? null
+            : () {
+                Navigator.pop(context);
+                widget.onReport!(widget.user.id);
+                Navigator.of(context).maybePop();
+              },
+        onBlock: widget.onBlock == null
+            ? null
+            : () {
+                Navigator.pop(context);
+                widget.onBlock!(widget.user.id);
+                Navigator.of(context).maybePop();
+              },
+      ),
+    );
+  }
+
   void _openChat() {
     HapticFeedback.selectionClick();
     SupabaseChatService.instance.markAsRead(widget.user.id);
@@ -502,7 +538,11 @@ class _StoryPageState extends State<_StoryPage>
           top: MediaQuery.viewPaddingOf(context).top + 44,
           left: 16,
           right: 16,
-          child: _StoryHeader(user: widget.user, accent: accent),
+          child: _StoryHeader(
+            user: widget.user,
+            accent: accent,
+            onMoreTap: _isOwn ? null : (widget.onReport != null || widget.onBlock != null ? _showModerationSheet : null),
+          ),
         ),
 
         // ── Bottom content ─────────────────────────────────────────────────
@@ -593,9 +633,14 @@ class _StoryPageState extends State<_StoryPage>
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _StoryHeader extends StatelessWidget {
-  const _StoryHeader({required this.user, required this.accent});
+  const _StoryHeader({
+    required this.user,
+    required this.accent,
+    this.onMoreTap,
+  });
   final UserProfile user;
   final Color accent;
+  final VoidCallback? onMoreTap;
 
   @override
   Widget build(BuildContext context) {
@@ -671,6 +716,13 @@ class _StoryHeader extends StatelessWidget {
                   ],
                 ],
               ),
+              if (onMoreTap != null) ...[
+                const SizedBox(width: 6),
+                _GlassIconButton(
+                  icon: Icons.more_horiz_rounded,
+                  onTap: onMoreTap!,
+                ),
+              ],
             ],
           ),
         ),
@@ -1302,6 +1354,115 @@ class _GlassIconButton extends StatelessWidget {
 }
 
 /// Streak indicator: a flame with the streak number in its center.
+// ─────────────────────────────────────────────────────────────────────────────
+// Moderation sheet (denunciar / bloquear)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ModerationSheet extends StatelessWidget {
+  const _ModerationSheet({
+    required this.userName,
+    this.onReport,
+    this.onBlock,
+  });
+
+  final String userName;
+  final VoidCallback? onReport;
+  final VoidCallback? onBlock;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Text(
+                userName,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const Divider(height: 1, color: Colors.white10),
+            if (onReport != null)
+              _ModerationOption(
+                icon: Icons.flag_outlined,
+                label: 'Denunciar',
+                color: Colors.orangeAccent,
+                onTap: onReport!,
+              ),
+            if (onReport != null && onBlock != null)
+              const Divider(height: 1, color: Colors.white10),
+            if (onBlock != null)
+              _ModerationOption(
+                icon: Icons.block_rounded,
+                label: 'Bloquear',
+                color: Colors.redAccent,
+                onTap: onBlock!,
+              ),
+            const Divider(height: 1, color: Colors.white10),
+            _ModerationOption(
+              icon: Icons.close_rounded,
+              label: 'Cancelar',
+              color: Colors.white70,
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ModerationOption extends StatelessWidget {
+  const _ModerationOption({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 14),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Streak display: flame on top, number below — clearly readable.
 class _StreakFire extends StatelessWidget {
   const _StreakFire({required this.streak});

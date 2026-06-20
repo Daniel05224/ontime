@@ -124,6 +124,11 @@ class NotificationService {
     // Terminated tap: app was closed, user tapped notification
     final initial = await messaging.getInitialMessage();
     if (initial != null) _handleFcmTap(initial);
+
+    // Clear any badge that FCM may have set during registration/delivery
+    if (Platform.isIOS) {
+      Future.delayed(const Duration(milliseconds: 800), clearBadge);
+    }
   }
 
   /// Saves the FCM token to the user's profile in Supabase.
@@ -138,12 +143,29 @@ class NotificationService {
     } catch (_) {}
   }
 
-  /// Clears all pending/delivered local notifications.
-  /// Badge reset on iOS is handled natively in AppDelegate.applicationDidBecomeActive.
+  /// Clears all pending/delivered local notifications and resets the iOS badge.
   Future<void> clearBadge() async {
     try {
       await _local.cancelAll();
     } catch (_) {}
+    if (Platform.isIOS) {
+      try {
+        await _local.show(
+          id: 0,
+          title: null,
+          body: null,
+          notificationDetails: const NotificationDetails(
+            iOS: DarwinNotificationDetails(
+              presentAlert: false,
+              presentBadge: true,
+              presentSound: false,
+              badgeNumber: 0,
+            ),
+          ),
+        );
+        await _local.cancel(id: 0);
+      } catch (_) {}
+    }
   }
 
   Future<void> clearFcmToken() async {

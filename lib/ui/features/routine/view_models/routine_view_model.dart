@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../data/repositories/routine_repository.dart';
+import '../../../../data/services/demo_mode.dart';
 import '../../../../data/services/supabase_profile_service.dart';
 import '../../../../data/services/supabase_status_service.dart';
 import '../../../../data/services/supabase_streak_service.dart';
@@ -25,12 +26,15 @@ class RoutineViewModel extends ChangeNotifier {
   Timer? _statusExpiryTimer;
   int _ownStreak = 0;
 
-  UserProfile get currentUser => _repository.currentUser;
+  UserProfile get currentUser => DemoMode.instance.isActive
+      ? DemoMode.self
+      : _repository.currentUser;
   List<UserProfile> get friends => _repository.friends;
   List<String> get emojis => _repository.emojis;
   List<QuickSuggestion> get quickSuggestions => _repository.quickSuggestions;
   bool get canSeeFriends => _repository.canSeeFriends;
-  int get ownStreak => _ownStreak;
+  int get ownStreak =>
+      DemoMode.instance.isActive ? DemoMode.self.streak : _ownStreak;
 
   List<Activity> getActivitiesByPeriod(RoutinePeriod period) =>
       _repository.getActivitiesByPeriod(period);

@@ -18,10 +18,19 @@ const _kQuickReactions = ['🔥', '❤️', '😂', '😮', '😍', '💀'];
 /// Full-bleed "live" photo card — the centerpiece of the feed deck.
 /// The Vibe (emoji + label + color) is the visual hero of every card.
 class LivePhotoCard extends StatefulWidget {
-  const LivePhotoCard({super.key, required this.user, this.isOwn = false, this.hideActions = false});
+  const LivePhotoCard({
+    super.key,
+    required this.user,
+    this.isOwn = false,
+    this.hideActions = false,
+    this.onReport,
+    this.onBlock,
+  });
   final UserProfile user;
   final bool isOwn;
   final bool hideActions;
+  final VoidCallback? onReport;
+  final VoidCallback? onBlock;
 
   @override
   State<LivePhotoCard> createState() => _LivePhotoCardState();
@@ -70,6 +79,19 @@ class _LivePhotoCardState extends State<LivePhotoCard>
   void dispose() {
     _reactCtrl.dispose();
     super.dispose();
+  }
+
+  void _showModerationSheet(BuildContext context) {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ModerationSheet(
+        userName: widget.user.name.split(' ').first,
+        onReport: widget.onReport,
+        onBlock: widget.onBlock,
+      ),
+    );
   }
 
   Future<void> _poke() async {
@@ -245,9 +267,33 @@ class _LivePhotoCardState extends State<LivePhotoCard>
                 ),
               ),
 
+            if (!widget.isOwn && (widget.onReport != null || widget.onBlock != null))
+              Positioned(
+                top: 14,
+                right: 14,
+                child: GestureDetector(
+                  onTap: () => _showModerationSheet(context),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.more_horiz_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
+
             if (isActive && activity.isLive && !widget.isOwn)
               Positioned(
-                  top: 18, right: 18, child: _LiveBadge(accent: accent)),
+                  top: 18,
+                  right: (widget.onReport != null || widget.onBlock != null) ? 56 : 18,
+                  child: _LiveBadge(accent: accent)),
 
             Positioned(
               left: 0,
@@ -1066,6 +1112,164 @@ class _EmojiButton extends StatelessWidget {
             duration: AppMotion.fast,
             child: Text(emoji, style: const TextStyle(fontSize: 22)),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Moderation sheet: report + block
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ModerationSheet extends StatelessWidget {
+  const _ModerationSheet({
+    required this.userName,
+    this.onReport,
+    this.onBlock,
+  });
+
+  final String userName;
+  final VoidCallback? onReport;
+  final VoidCallback? onBlock;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (onReport != null)
+            _ModerationOption(
+              icon: Icons.flag_outlined,
+              label: 'Denunciar conteúdo',
+              sublabel: 'Reportar como inapropriado',
+              color: const Color(0xFFFF9500),
+              onTap: () {
+                Navigator.pop(context);
+                onReport!();
+                _showConfirmation(context, 'Conteúdo denunciado',
+                    'Obrigado! Nossa equipe vai analisar em até 24h.');
+              },
+            ),
+          if (onReport != null && onBlock != null) const SizedBox(height: 10),
+          if (onBlock != null)
+            _ModerationOption(
+              icon: Icons.block_rounded,
+              label: 'Bloquear $userName',
+              sublabel: 'Remove do seu feed imediatamente',
+              color: const Color(0xFFFF3B30),
+              onTap: () {
+                Navigator.pop(context);
+                onBlock!();
+                _showConfirmation(context, '$userName bloqueado',
+                    'Você não verá mais o conteúdo desta pessoa.');
+              },
+            ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: double.infinity,
+              height: 52,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showConfirmation(BuildContext context, String title, String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$title — $msg'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+}
+
+class _ModerationOption extends StatelessWidget {
+  const _ModerationOption({
+    required this.icon,
+    required this.label,
+    required this.sublabel,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String sublabel;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    sublabel,
+                    style: const TextStyle(
+                      color: Colors.white60,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../data/services/demo_mode.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/widgets/animations.dart';
+import '../../home/views/home_view.dart';
 import 'auth_shared.dart';
 import 'forgot_password_view.dart';
 import 'signup_view.dart';
@@ -63,6 +65,15 @@ class _LoginViewState extends State<LoginView> {
       'Nenhuma conta encontrada com esse e-mail.',
     _ => message,
   };
+
+  void _enterDemo() {
+    HapticFeedback.selectionClick();
+    DemoMode.instance.isActive = true;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const HomeView()),
+      (_) => false,
+    );
+  }
 
   void _goToSignup() {
     Navigator.of(context).push(
@@ -243,6 +254,47 @@ class _LoginViewState extends State<LoginView> {
                         question: 'Não tem conta? ',
                         actionLabel: 'Criar conta',
                         onTap: _goToSignup,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Demo mode ─────────────────────────────────────────
+                  EntranceFade(
+                    index: 10,
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: _enterDemo,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.10),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.play_circle_outline_rounded,
+                                color: AppColors.textTertiary,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Explorar sem conta',
+                                style: TextStyle(
+                                  color: AppColors.textTertiary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),

@@ -21,11 +21,17 @@ class StoryDeckFeed extends StatefulWidget {
     required this.friends,
     this.self,
     this.onSelfTap,
+    this.onReport,
+    this.onBlock,
+    this.topPadding = 0,
   });
 
   final List<UserProfile> friends;
   final UserProfile? self;
   final VoidCallback? onSelfTap;
+  final void Function(String userId)? onReport;
+  final void Function(String userId)? onBlock;
+  final double topPadding;
 
   @override
   State<StoryDeckFeed> createState() => _StoryDeckFeedState();
@@ -35,9 +41,7 @@ class _StoryDeckFeedState extends State<StoryDeckFeed>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ticker;
   double _t = 0;
-
-  late final PageController _deck =
-      PageController(viewportFraction: 0.96);
+  int _currentIndex = 0;
 
   List<UserProfile> _live = const [];
   List<UserProfile> _planned = const [];
@@ -64,7 +68,6 @@ class _StoryDeckFeedState extends State<StoryDeckFeed>
   @override
   void dispose() {
     _ticker.dispose();
-    _deck.dispose();
     super.dispose();
   }
 
@@ -102,7 +105,39 @@ class _StoryDeckFeedState extends State<StoryDeckFeed>
       context,
       stories: all.isEmpty ? [friend] : all,
       initialIndex: idx < 0 ? 0 : idx,
+      onReport: widget.onReport,
+      onBlock: widget.onBlock,
     );
+  }
+
+  void _openCurrentStory({int offset = 0, bool instant = false}) {
+    final all = _allActive;
+    if (all.isEmpty) return;
+    final idx = (_currentIndex + offset).clamp(0, all.length - 1);
+    HapticFeedback.selectionClick();
+    if (instant) {
+      Navigator.of(context).push(PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.transparent,
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: AppMotion.exit,
+        pageBuilder: (_, __, ___) => StoryViewer(
+          stories: all,
+          initialIndex: idx,
+          onReport: widget.onReport,
+          onBlock: widget.onBlock,
+        ),
+        transitionsBuilder: (_, __, ___, child) => child,
+      ));
+    } else {
+      StoryViewer.open(
+        context,
+        stories: all,
+        initialIndex: idx,
+        onReport: widget.onReport,
+        onBlock: widget.onBlock,
+      );
+    }
   }
 
   void _openSocialHub() {
@@ -143,7 +178,7 @@ class _StoryDeckFeedState extends State<StoryDeckFeed>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Stories row ───────────────────────────────────────────────
-              const SizedBox(height: 6),
+              SizedBox(height: widget.topPadding > 0 ? widget.topPadding : 12),
               _StoriesRow(
                 self: widget.self,
                 active: active,
@@ -153,32 +188,178 @@ class _StoryDeckFeedState extends State<StoryDeckFeed>
                 onStory: _openStory,
                 onOffline: _openSocialHub,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 0),
 
               // ── Card deck ─────────────────────────────────────────────────
               Expanded(
                 child: active.isEmpty
                     ? const Center(child: _EmptyDeckHint())
-                    : PageView.builder(
-                        controller: _deck,
-                        itemCount: active.length,
-                        padEnds: true,
-                        itemBuilder: (context, i) {
-                          final friend = active[i];
-                          return Padding(
-                            padding:
-                                const EdgeInsets.fromLTRB(3, 0, 3, 12),
-                            child: GestureDetector(
-                              onTap: () => _openStory(friend),
-                              child: LivePhotoCard(user: friend),
-                            ),
-                          );
-                        },
+                    : _CardStack(
+                        active: active,
+                        currentIndex: _currentIndex,
+                        onTap: () => _openCurrentStory(),
+                        onSwipeLeft: () => _openCurrentStory(
+                            offset: active.length > 1 ? 1 : 0,
+                            instant: true),
+                        onSwipeRight: () => _openCurrentStory(
+                            offset: _currentIndex > 0 ? -1 : 0,
+                            instant: true),
+                        onReport: widget.onReport,
+                        onBlock: widget.onBlock,
                       ),
               ),
             ],
           ),
       ],
+    );
+  }
+}
+
+// ── Card stack ────────────────────────────────────────────────────────────────
+
+class _CardStack extends StatefulWidget {
+  const _CardStack({
+    required this.active,
+    required this.currentIndex,
+    required this.onTap,
+    required this.onSwipeLeft,
+    required this.onSwipeRight,
+    this.onReport,
+    this.onBlock,
+  });
+
+  final List<UserProfile> active;
+  final int currentIndex;
+  final VoidCallback onTap;
+  final VoidCallback onSwipeLeft;
+  final VoidCallback onSwipeRight;
+  final void Function(String userId)? onReport;
+  final void Function(String userId)? onBlock;
+
+  @override
+  State<_CardStack> createState() => _CardStackState();
+}
+
+class _CardStackState extends State<_CardStack>
+    with SingleTickerProviderStateMixin {
+  double _dragX = 0;
+  double _springFrom = 0;
+  double _springTo = 0;
+
+  late final AnimationController _spring = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  )..addListener(() => setState(() {}));
+
+  @override
+  void dispose() {
+    _spring.dispose();
+    super.dispose();
+  }
+
+  double get _offset {
+    if (_spring.isAnimating) {
+      final t = Curves.easeOutCubic.transform(_spring.value);
+      return _springFrom + (_springTo - _springFrom) * t;
+    }
+    return _dragX;
+  }
+
+  void _animateTo(double target, {VoidCallback? onDone}) {
+    _springFrom = _offset;
+    _springTo = target;
+    _spring.reset();
+    _spring.forward().whenCompleteOrCancel(() {
+      if (!mounted) return;
+      setState(() => _dragX = 0);
+      onDone?.call();
+    });
+  }
+
+  void _onPanUpdate(DragUpdateDetails d) {
+    if (_spring.isAnimating) return;
+    setState(() => _dragX += d.primaryDelta ?? 0);
+  }
+
+  void _onPanEnd(DragEndDetails d) {
+    if (_spring.isAnimating) return;
+    final v = d.primaryVelocity ?? 0;
+    final w = MediaQuery.sizeOf(context).width;
+
+    if (v < -400 || _dragX < -w * 0.28) {
+      _animateTo(-w * 1.4, onDone: widget.onSwipeLeft);
+    } else if (v > 400 || _dragX > w * 0.28) {
+      _animateTo(w * 1.4, onDone: widget.onSwipeRight);
+    } else {
+      _animateTo(0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stackCount = math.min(3, widget.active.length - widget.currentIndex);
+    final screenW = MediaQuery.sizeOf(context).width;
+    final offset = _offset;
+
+    // 0..1 progress toward next card (swiping left)
+    final progress = (-offset / screenW).clamp(0.0, 1.0);
+
+    // px that each behind card peeks on the right side
+    const peekRight = 24.0;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: offset.abs() < 5 ? widget.onTap : null,
+      onHorizontalDragUpdate: _onPanUpdate,
+      onHorizontalDragEnd: _onPanEnd,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Cards atrás — peek pela direita, avançam enquanto o card da frente sai
+            for (var o = stackCount - 1; o >= 1; o--)
+              Positioned(
+                top: 0,
+                bottom: 0,
+                // At rest: shifted right by peekRight*o (peek visible on right side)
+                // As front card slides out: moves toward center (left=0, right=0)
+                left: o * peekRight * (1 - progress),
+                right: -o * peekRight * (1 - progress),
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: (1.0 - o * 0.25) + o * 0.25 * progress,
+                    child: Transform.scale(
+                      scale: (1.0 - o * 0.04) + o * 0.04 * progress,
+                      child: LivePhotoCard(
+                          user: widget.active[widget.currentIndex + o]),
+                    ),
+                  ),
+                ),
+              ),
+            // Card atual — move com o drag e rota levemente
+            Positioned.fill(
+              child: Transform.translate(
+                offset: Offset(offset, 0),
+                child: Transform.rotate(
+                  angle: offset / screenW * 0.06,
+                  child: LivePhotoCard(
+                    user: widget.active[widget.currentIndex],
+                    onReport: widget.onReport != null
+                        ? () => widget.onReport!(
+                            widget.active[widget.currentIndex].id)
+                        : null,
+                    onBlock: widget.onBlock != null
+                        ? () => widget.onBlock!(
+                            widget.active[widget.currentIndex].id)
+                        : null,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

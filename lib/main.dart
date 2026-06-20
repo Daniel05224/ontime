@@ -176,12 +176,8 @@ class _AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<_AuthGate>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with WidgetsBindingObserver {
   Widget? _destination;
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1800),
-  )..repeat(reverse: true);
 
   @override
   void initState() {
@@ -219,7 +215,6 @@ class _AuthGateState extends State<_AuthGate>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _pulse.dispose();
     super.dispose();
   }
 
