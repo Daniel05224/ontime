@@ -127,7 +127,7 @@ class _SocialHubViewState extends State<SocialHubView>
   @override
   Widget build(BuildContext context) {
     final feedVm = context.watch<FeedViewModel>();
-    final activeCount = feedVm.friends
+    final activeCount = feedVm.feedFriends
         .where((f) => f.currentActivity != null)
         .length;
 
@@ -138,7 +138,7 @@ class _SocialHubViewState extends State<SocialHubView>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _HubHeader(
-              totalFriends: feedVm.friends.length,
+              totalFriends: feedVm.feedFriends.length,
               activeCount: activeCount,
               unreadMessages: _totalUnread,
               onBack: () => Navigator.of(context).pop(),
@@ -162,6 +162,8 @@ class _SocialHubViewState extends State<SocialHubView>
                     friends: feedVm.friends,
                     lastMessages: _lastMessages,
                     unreadCounts: _unreadCounts,
+                    blockedIds: feedVm.blockedIds,
+                    blockedByIds: feedVm.blockedByIds,
                     loading: !_previewsLoaded,
                     onTap: _openChat,
                   ),
@@ -516,6 +518,8 @@ class _FriendsTab extends StatelessWidget {
     required this.friends,
     required this.lastMessages,
     required this.unreadCounts,
+    required this.blockedIds,
+    required this.blockedByIds,
     required this.loading,
     required this.onTap,
   });
@@ -523,8 +527,14 @@ class _FriendsTab extends StatelessWidget {
   final List<UserProfile> friends;
   final Map<String, ChatMessage?> lastMessages;
   final Map<String, int> unreadCounts;
+  final Set<String> blockedIds;
+  final Set<String> blockedByIds;
   final bool loading;
   final ValueChanged<UserProfile> onTap;
+
+  // True for anyone in either block direction — always shown as offline.
+  bool _isAnyBlocked(String id) =>
+      blockedIds.contains(id) || blockedByIds.contains(id);
 
   @override
   Widget build(BuildContext context) {
@@ -546,8 +556,13 @@ class _FriendsTab extends StatelessWidget {
 
     if (friends.isEmpty) return const _EmptyFriends();
 
-    final active = friends.where((f) => f.currentActivity != null).toList();
-    final inactive = friends.where((f) => f.currentActivity == null).toList()
+    // Blocked or blocking friends always appear as inactive (hide their activity).
+    final active = friends
+        .where((f) => f.currentActivity != null && !_isAnyBlocked(f.id))
+        .toList();
+    final inactive = friends
+        .where((f) => f.currentActivity == null || _isAnyBlocked(f.id))
+        .toList()
       ..sort((a, b) {
         final ua = unreadCounts[a.id] ?? 0;
         final ub = unreadCounts[b.id] ?? 0;
@@ -620,8 +635,12 @@ class _FriendsTab extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 10),
                     child: _FriendRow(
                       friend: inactive[i],
-                      lastMessage: lastMessages[inactive[i].id],
-                      unreadCount: unreadCounts[inactive[i].id] ?? 0,
+                      lastMessage: _isAnyBlocked(inactive[i].id)
+                          ? null
+                          : lastMessages[inactive[i].id],
+                      unreadCount: _isAnyBlocked(inactive[i].id)
+                          ? 0
+                          : (unreadCounts[inactive[i].id] ?? 0),
                       onTap: () => onTap(inactive[i]),
                     ),
                   ),

@@ -24,13 +24,19 @@ import UserNotifications
   }
 
   // Called when a notification arrives while the app is in the FOREGROUND.
-  // We show banner + sound but never touch the badge.
   override func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
-    if #available(iOS 14.0, *) {
+    // Remote FCM pushes are suppressed in the foreground — Flutter's onMessage
+    // handler re-shows them as a local notification with our own rules (skip the
+    // chat you already have open, skip blocked senders). This avoids a duplicate
+    // banner (system FCM push + app-generated local notification).
+    let isRemotePush = notification.request.trigger is UNPushNotificationTrigger
+    if isRemotePush {
+      completionHandler([])
+    } else if #available(iOS 14.0, *) {
       completionHandler([.banner, .sound])
     } else {
       completionHandler([.alert, .sound])

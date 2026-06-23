@@ -34,6 +34,7 @@ class FeedViewModel extends ChangeNotifier {
   List<UserProfile> _friends = [];
   List<PendingRequest> _pendingRequests = [];
   final Set<String> _blockedIds = {};
+  final Set<String> _blockedByIds = {}; // users who blocked the current user
   bool _loading = true;
   bool _initialized = false;
   bool _canSeeFriends = false;
@@ -44,9 +45,23 @@ class FeedViewModel extends ChangeNotifier {
   late final StreamSubscription<AuthState> _authSub;
   Timer? _expiryTimer;
 
+  /// All friends, including blocked ones. The chat list uses this so you can
+  /// still message someone you've blocked.
   List<UserProfile> get friends => DemoMode.instance.isActive
       ? DemoMode.friends
-      : _friends.where((f) => !_blockedIds.contains(f.id)).toList();
+      : _friends;
+
+  /// Friends whose posts should appear in the feed — filters both directions:
+  /// people you blocked and people who blocked you.
+  List<UserProfile> get feedFriends => DemoMode.instance.isActive
+      ? DemoMode.friends
+      : _friends.where((f) =>
+          !_blockedIds.contains(f.id) && !_blockedByIds.contains(f.id)).toList();
+
+  bool isBlocked(String userId) => _blockedIds.contains(userId);
+  bool isBlockedBy(String userId) => _blockedByIds.contains(userId);
+  Set<String> get blockedIds => Set.unmodifiable(_blockedIds);
+  Set<String> get blockedByIds => Set.unmodifiable(_blockedByIds);
   List<PendingRequest> get pendingRequests => _pendingRequests;
   int get pendingCount => _pendingRequests.length;
   bool get loading => _loading;
@@ -63,8 +78,15 @@ class FeedViewModel extends ChangeNotifier {
 
     SupabaseChatService.instance.cleanupOldMessages();
 
-    final blocked = await SupabaseModerationService.instance.getBlockedIds();
-    _blockedIds.addAll(blocked);
+    final results = await Future.wait([
+      SupabaseModerationService.instance.getBlockedIds(),
+      SupabaseModerationService.instance.getBlockedByIds(),
+    ]);
+    _blockedIds.addAll(results[0]);
+    _blockedByIds.addAll(results[1]);
+    _syncNotificationBlocklist();
+    debugPrint('[FeedVM] blockedIds: $_blockedIds');
+    debugPrint('[FeedVM] blockedByIds: $_blockedByIds');
 
     await Future.wait([_refresh(), _loadPendingRequests()]);
 
@@ -80,6 +102,8 @@ class FeedViewModel extends ChangeNotifier {
     _friends = [];
     _pendingRequests = [];
     _blockedIds.clear();
+    _blockedByIds.clear();
+    _syncNotificationBlocklist();
     _canSeeFriends = false;
     _loading = false;
     _initialized = false;
@@ -199,11 +223,26 @@ class FeedViewModel extends ChangeNotifier {
     await SupabaseModerationService.instance.reportUser(userId);
   }
 
+  /// Blocks a user: their posts disappear from the feed, but the friendship
+  /// stays intact so the chat remains available.
   Future<void> blockUser(String userId) async {
     _blockedIds.add(userId);
+    _syncNotificationBlocklist();
     notifyListeners();
     await SupabaseModerationService.instance.blockUser(userId);
-    await SupabaseFriendService.instance.removeFriend(userId);
+  }
+
+  Future<void> unblockUser(String userId) async {
+    _blockedIds.remove(userId);
+    _syncNotificationBlocklist();
+    notifyListeners();
+    await SupabaseModerationService.instance.unblockUser(userId);
+  }
+
+  void _syncNotificationBlocklist() {
+    NotificationService.instance.blockedIds
+      ..clear()
+      ..addAll(_blockedIds);
   }
 
   // ── Called after the user posts ───────────────────────────────────────────

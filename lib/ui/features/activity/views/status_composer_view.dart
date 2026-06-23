@@ -1572,20 +1572,26 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
   ).animate(CurvedAnimation(parent: _ctrl, curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic)));
 
   CameraController? _camera;
-  List<CameraDescription> _cameras = const [];
-  int _camIndex = 0;
+  CameraDescription? _wideCam; // back wide-angle (the 1x base lens)
+  CameraDescription? _ultraCam; // back ultra-wide (0.5x) — separate physical lens
+  CameraDescription? _frontCam; // front camera
+  bool _usingFront = false; // currently showing the front camera
+  bool _onUltra = false; // currently on the back ultra-wide lens (0.5x)
+  bool _switchingLens = false; // guards against overlapping lens switches
   bool _initializing = true;
   bool _capturing = false;
   bool _flashOn = false;
   String? _error;
-  double _currentZoom = 1.0;
-  double _maxZoom = 1.0;
-  double _minZoom = 1.0;
+  // Value shown to the user (0.5, 1, 2, 3…). On the ultra-wide lens this is 0.5;
+  // on the wide lens it equals the native zoom level.
+  double _effectiveZoom = 1.0;
+  double _wideMaxZoom = 1.0; // max native zoom of the wide lens
   double _lastZoomScale = 1.0;
 
   @override
   void initState() {
     super.initState();
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _setupCamera();
   }
 
@@ -1602,22 +1608,30 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
         return;
       }
 
-      // Keep only the first back camera and the first front camera (no ultra-wide)
-      final back = all.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => all.first,
+      // Back wide-angle = the main 1x lens.
+      _wideCam = all.cast<CameraDescription?>().firstWhere(
+        (c) => c!.lensDirection == CameraLensDirection.back &&
+            c.lensType == CameraLensType.wide,
+        orElse: () => all.cast<CameraDescription?>().firstWhere(
+          (c) => c!.lensDirection == CameraLensDirection.back,
+          orElse: () => all.first,
+        ),
       );
-      final front = all.cast<CameraDescription?>().firstWhere(
+      // Back ultra-wide = the 0.5x lens. On iOS this is a SEPARATE physical
+      // camera — you reach 0.5x by switching to it, not by setting zoom < 1.
+      _ultraCam = all.cast<CameraDescription?>().firstWhere(
+        (c) => c!.lensDirection == CameraLensDirection.back &&
+            c.lensType == CameraLensType.ultraWide,
+        orElse: () => null,
+      );
+      _frontCam = all.cast<CameraDescription?>().firstWhere(
         (c) => c!.lensDirection == CameraLensDirection.front,
         orElse: () => null,
       );
-      _cameras = [back, if (front != null) front];
 
-      _camIndex = _cameras.indexWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-      );
-      if (_camIndex < 0) _camIndex = 0;
-      await _startController(_cameras[_camIndex]);
+      _usingFront = false;
+      _onUltra = false;
+      await _startController(_wideCam!);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -1647,12 +1661,15 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
         return;
       }
 
+      // Lock preview to portrait so rotating the device doesn't rotate the feed.
+      try {
+        await controller.lockCaptureOrientation(DeviceOrientation.portraitUp);
+      } catch (_) {}
+
       // Ensure flash is OFF when camera starts
       try {
         await controller.setFlashMode(FlashMode.off);
-      } catch (_) {
-        // Ignore flash errors
-      }
+      } catch (_) {}
 
       await Future.delayed(const Duration(milliseconds: 500));
 
@@ -1661,28 +1678,32 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
         return;
       }
 
-      double minZoom = 1.0;
-      double maxZoom = 1.0;
-      try {
-        minZoom = await controller.getMinZoomLevel();
-        maxZoom = await controller.getMaxZoomLevel();
-      } catch (_) {
-        // Ignore zoom level errors
+      final isUltra = desc.lensType == CameraLensType.ultraWide;
+      final isBack = desc.lensDirection == CameraLensDirection.back;
+
+      // Read the wide lens' real max zoom so the 2×/3× pills only show when
+      // the hardware supports them. The ultra-wide lens always represents 0.5×.
+      double wideMaxZoom = _wideMaxZoom;
+      if (isBack && !isUltra) {
+        try {
+          wideMaxZoom = await controller.getMaxZoomLevel();
+        } catch (_) {}
       }
 
-      // Force zoom to stay at 1x only - no 0.5x, no 2x
-      minZoom = 1.0;
-      maxZoom = 1.0;
+      // Each physical lens sits at its own native 1.0 (its widest field of
+      // view). For the ultra-wide that view IS 0.5×; for the wide it is 1×.
+      try {
+        await controller.setZoomLevel(1.0);
+      } catch (_) {}
 
       if (mounted) {
         setState(() {
           _camera = controller;
           _initializing = false;
           _error = null;
-          _minZoom = minZoom;
-          _maxZoom = maxZoom;
-          _currentZoom = 1.0;
-          _flashOn = false; // Ensure flash is OFF
+          _wideMaxZoom = wideMaxZoom;
+          _effectiveZoom = isUltra ? 0.5 : 1.0;
+          _flashOn = false;
         });
       }
     } catch (e) {
@@ -1696,17 +1717,40 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     }
   }
 
-  Future<void> _flipCamera() async {
-    if (_cameras.length < 2) return;
-    HapticFeedback.selectionClick();
+  bool get _isBackCamera => !_usingFront;
+
+  /// Tears down the current controller and brings up [desc]. This is how we
+  /// reach 0.5× on iOS — the ultra-wide is a distinct physical camera, so we
+  /// swap the whole controller rather than calling setZoomLevel.
+  Future<void> _switchLens({
+    required CameraDescription desc,
+    required bool toUltra,
+    required bool toFront,
+  }) async {
+    if (_switchingLens) return;
+    _switchingLens = true;
     final old = _camera;
     setState(() {
       _camera = null;
       _initializing = true;
+      _usingFront = toFront;
+      _onUltra = toUltra;
     });
     await old?.dispose();
-    _camIndex = (_camIndex + 1) % _cameras.length;
-    await _startController(_cameras[_camIndex]);
+    await _startController(desc);
+    _switchingLens = false;
+  }
+
+  Future<void> _flipCamera() async {
+    HapticFeedback.selectionClick();
+    if (_usingFront) {
+      // Front → back: land on the wide lens at 1×.
+      if (_wideCam == null) return;
+      await _switchLens(desc: _wideCam!, toUltra: false, toFront: false);
+    } else {
+      if (_frontCam == null) return;
+      await _switchLens(desc: _frontCam!, toUltra: false, toFront: true);
+    }
   }
 
   Future<void> _toggleFlash() async {
@@ -1742,36 +1786,69 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
     } catch (_) {}
   }
 
-  Future<void> _setZoom(double zoom) async {
+  /// Whether the given zoom pill should read as the current selection.
+  bool _zoomPillActive(double z) {
+    if (z == 0.5) return _onUltra;
+    if (_onUltra) return false;
+    return _effectiveZoom >= z - 0.26 && _effectiveZoom < z + 0.75;
+  }
+
+  /// Handles a tap on a zoom pill (0.5 / 1 / 2 / 3). 0.5 hops to the ultra-wide
+  /// lens; everything else uses the wide lens at that native zoom.
+  Future<void> _selectZoom(double effective) async {
+    if (_usingFront || _switchingLens) return;
+    HapticFeedback.selectionClick();
+    if (effective < 1.0) {
+      if (_ultraCam == null || _onUltra) return;
+      await _switchLens(desc: _ultraCam!, toUltra: true, toFront: false);
+      return;
+    }
+    if (_onUltra) {
+      await _switchLens(desc: _wideCam!, toUltra: false, toFront: false);
+    }
+    await _applyWideZoom(effective);
+  }
+
+  /// Sets a native zoom level on the wide lens (never below 1×, which it can't do).
+  Future<void> _applyWideZoom(double zoom) async {
     final cam = _camera;
     if (cam == null || !cam.value.isInitialized) return;
     try {
-      final clampedZoom = zoom.clamp(_minZoom, _maxZoom);
-      await cam.setZoomLevel(clampedZoom);
-      if (mounted) {
-        setState(() => _currentZoom = clampedZoom);
-      }
+      final clamped = zoom.clamp(1.0, _wideMaxZoom);
+      await cam.setZoomLevel(clamped);
+      if (mounted) setState(() => _effectiveZoom = clamped);
     } catch (_) {
       // Silently ignore zoom errors
     }
   }
 
   void _handleScaleStart(ScaleStartDetails details) {
-    _lastZoomScale = 1.0;
+    _lastZoomScale = _effectiveZoom;
   }
 
   void _handleScaleUpdate(ScaleUpdateDetails details) {
-    // Only allow zoom if min and max are different
-    if (_minZoom >= _maxZoom) return;
+    if (_usingFront || _switchingLens) return;
+    final target = _lastZoomScale * details.scale;
 
-    final scaleDelta = details.scale / _lastZoomScale;
-    final newZoom = _currentZoom * scaleDelta;
-    _setZoom(newZoom);
-    _lastZoomScale = details.scale;
+    // Pinching in past 1× drops to the ultra-wide lens (0.5×).
+    if (target < 0.9 && _ultraCam != null && !_onUltra) {
+      _lastZoomScale = 0.5;
+      _switchLens(desc: _ultraCam!, toUltra: true, toFront: false);
+      return;
+    }
+    // Pinching out of the ultra-wide lens climbs back to the wide lens.
+    if (_onUltra) {
+      if (target >= 1.0) {
+        _lastZoomScale = 1.0;
+        _switchLens(desc: _wideCam!, toUltra: false, toFront: false);
+      }
+      return;
+    }
+    _applyWideZoom(target);
   }
 
   void _handleScaleEnd(ScaleEndDetails details) {
-    _lastZoomScale = 1.0;
+    _lastZoomScale = _effectiveZoom;
   }
 
   Future<void> _capture() async {
@@ -1792,6 +1869,12 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
 
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     _ctrl.dispose();
     _camera?.dispose();
     super.dispose();
@@ -1977,7 +2060,7 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                         // Botão trocar câmera
-                        if (_cameras.length > 1)
+                        if (_frontCam != null)
                           Padding(
                             padding: const EdgeInsets.only(right: 24),
                             child: GestureDetector(
@@ -2041,6 +2124,61 @@ class _PhotoQuestionSheetState extends State<_PhotoQuestionSheet>
                       ],
                     ),
               ),
+
+              // ── Zoom pills (só camera traseira) ─────────────────────────
+              if (_isBackCamera)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: bottomPad + 196,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final z in [0.5, 1.0, 2.0, 3.0])
+                            if (z == 1.0 ||
+                                (z == 0.5 && _ultraCam != null) ||
+                                (z > 1.0 && z <= _wideMaxZoom))
+                              Builder(builder: (_) {
+                                final active = _zoomPillActive(z);
+                                return GestureDetector(
+                                  onTap: () => _selectZoom(z),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                                    width: 38,
+                                    height: 30,
+                                    decoration: BoxDecoration(
+                                      color: active
+                                          ? Colors.white.withValues(alpha: 0.22)
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      z == 0.5 ? '.5×' : '${z.toInt()}×',
+                                      style: TextStyle(
+                                        color: active
+                                            ? Colors.white
+                                            : Colors.white60,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
 
               // ── Botão "Só postar" (embaixo) ─────────────────────────────
               Positioned(

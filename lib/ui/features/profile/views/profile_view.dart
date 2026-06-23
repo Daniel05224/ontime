@@ -197,7 +197,8 @@ class _ProfileViewState extends State<ProfileView> {
     try {
       await Supabase.instance.client.rpc('delete_own_account');
       await Supabase.instance.client.auth.signOut();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[deleteAccount] error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

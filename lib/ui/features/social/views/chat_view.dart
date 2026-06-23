@@ -60,6 +60,12 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Future<void> _load() async {
+    final vm = context.read<FeedViewModel>();
+    // Blocker sees an empty chat — messages from the blocked person are hidden.
+    if (vm.isBlocked(widget.friend.id)) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     final msgs =
         await SupabaseChatService.instance.getMessages(widget.friend.id);
     if (!mounted) return;
@@ -72,6 +78,9 @@ class _ChatViewState extends State<ChatView> {
   }
 
   void _onNewMessage() async {
+    final vm = context.read<FeedViewModel>();
+    // Blocked the friend → don't show their new messages.
+    if (vm.isBlocked(widget.friend.id)) return;
     final msgs =
         await SupabaseChatService.instance.getMessages(widget.friend.id);
     if (!mounted) return;
@@ -121,22 +130,51 @@ class _ChatViewState extends State<ChatView> {
 
   void _showMoreOptions() {
     HapticFeedback.selectionClick();
-    showModalBottomSheet(
+    final feedVm = context.read<FeedViewModel>();
+    showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => _RemoveFriendSheet(friend: widget.friend),
-    ).then((removed) {
-      if (removed == true && mounted) {
-        context.read<FeedViewModel>().removeFriend(widget.friend.id);
-        Navigator.of(context).pop();
+      builder: (_) => _RemoveFriendSheet(
+        friend: widget.friend,
+        isBlocked: feedVm.isBlocked(widget.friend.id),
+      ),
+    ).then((action) {
+      if (action == null || !mounted) return;
+      final name = widget.friend.name.split(' ').first;
+      switch (action) {
+        case 'remove':
+          feedVm.removeFriend(widget.friend.id);
+          Navigator.of(context).pop();
+        case 'block':
+          feedVm.blockUser(widget.friend.id);
+          _showModerationSnack(
+              'Você bloqueou $name. Posts e novas mensagens ficam ocultos.');
+        case 'unblock':
+          feedVm.unblockUser(widget.friend.id);
+          _load(); // reveal messages that arrived during the block
+          _showModerationSnack('Você desbloqueou $name.');
       }
     });
+  }
+
+  void _showModerationSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.surfaceHigh,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
     final friend = widget.friend;
     final bottomPadding = MediaQuery.viewInsetsOf(context).bottom;
+    final isBlocked = context.watch<FeedViewModel>().isBlocked(friend.id);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -165,7 +203,15 @@ class _ChatViewState extends State<ChatView> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if (friend.currentActivity != null)
+                  if (isBlocked)
+                    const Text(
+                      'bloqueado',
+                      style: TextStyle(
+                        color: AppColors.textTertiary,
+                        fontSize: 11,
+                      ),
+                    )
+                  else if (friend.currentActivity != null)
                     Text(
                       friend.currentActivity!.isLive
                           ? '${friend.currentActivity!.emoji} ativo agora'
@@ -192,7 +238,7 @@ class _ChatViewState extends State<ChatView> {
           ],
         ),
         actions: [
-          _PokeButton(poking: _poking, onTap: _poke),
+          if (!isBlocked) _PokeButton(poking: _poking, onTap: _poke),
           IconButton(
             icon: const Icon(Icons.more_vert_rounded,
                 color: AppColors.textSecondary, size: 22),
@@ -238,12 +284,18 @@ class _ChatViewState extends State<ChatView> {
                         },
                       ),
           ),
-          _InputBar(
-            controller: _textController,
-            sending: _sending,
-            onSend: _send,
-            extraPadding: bottomPadding,
-          ),
+          if (isBlocked)
+            _BlockedBar(
+              friendName: friend.name.split(' ').first,
+              bottomPadding: bottomPadding,
+            )
+          else
+            _InputBar(
+              controller: _textController,
+              sending: _sending,
+              onSend: _send,
+              extraPadding: bottomPadding,
+            ),
         ],
       ),
     );
@@ -796,11 +848,46 @@ class _SendButton extends StatelessWidget {
   }
 }
 
+// ── Blocked bar ──────────────────────────────────────────────────────────────
+
+class _BlockedBar extends StatelessWidget {
+  const _BlockedBar({required this.friendName, required this.bottomPadding});
+  final String friendName;
+  final double bottomPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 14, 20, 14 + MediaQuery.paddingOf(context).bottom),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.border)),
+        color: AppColors.surface,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.block_rounded, size: 15, color: AppColors.textTertiary),
+          const SizedBox(width: 8),
+          Text(
+            'Você bloqueou $friendName · não pode enviar mensagens',
+            style: const TextStyle(
+              color: AppColors.textTertiary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Remove friend sheet ───────────────────────────────────────────────────────
 
 class _RemoveFriendSheet extends StatefulWidget {
-  const _RemoveFriendSheet({required this.friend});
+  const _RemoveFriendSheet({required this.friend, this.isBlocked = false});
   final UserProfile friend;
+  final bool isBlocked;
 
   @override
   State<_RemoveFriendSheet> createState() => _RemoveFriendSheetState();
@@ -813,7 +900,12 @@ class _RemoveFriendSheetState extends State<_RemoveFriendSheet> {
     setState(() => _loading = true);
     HapticFeedback.mediumImpact();
     await Future.delayed(const Duration(milliseconds: 300));
-    if (mounted) Navigator.of(context).pop(true);
+    if (mounted) Navigator.of(context).pop('remove');
+  }
+
+  void _toggleBlock() {
+    HapticFeedback.mediumImpact();
+    Navigator.of(context).pop(widget.isBlocked ? 'unblock' : 'block');
   }
 
   @override
@@ -848,7 +940,58 @@ class _RemoveFriendSheetState extends State<_RemoveFriendSheet> {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (widget.isBlocked) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Bloqueado · você ainda pode conversar',
+              style: TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
+          // Bloquear / Desbloquear
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: PressableScale(
+              onTap: _toggleBlock,
+              child: Container(
+                height: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      widget.isBlocked
+                          ? Icons.lock_open_rounded
+                          : Icons.block_rounded,
+                      color: widget.isBlocked
+                          ? AppColors.primaryBright
+                          : AppColors.textSecondary,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      widget.isBlocked ? 'Desbloquear' : 'Bloquear',
+                      style: TextStyle(
+                        color: widget.isBlocked
+                            ? AppColors.primaryBright
+                            : AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: PressableScale(

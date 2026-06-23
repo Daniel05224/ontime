@@ -86,10 +86,20 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    const [receiverRes, senderRes] = await Promise.all([
+    // Don't send push if the receiver has blocked the sender
+    const [receiverRes, senderRes, blockRes] = await Promise.all([
       supabase.from('profiles').select('fcm_token').eq('id', receiverId).single(),
       supabase.from('profiles').select('name').eq('id', senderId).single(),
+      supabase
+        .from('blocked_users')
+        .select('blocker_id', { count: 'exact', head: true })
+        .eq('blocker_id', receiverId)
+        .eq('blocked_id', senderId),
     ])
+
+    if ((blockRes.count ?? 0) > 0) {
+      return new Response('Sender is blocked', { status: 200 })
+    }
 
     const fcmToken = receiverRes.data?.fcm_token as string | null
     if (!fcmToken) {

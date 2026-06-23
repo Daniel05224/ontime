@@ -38,12 +38,16 @@ class FriendsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final viewModel = context.watch<FeedViewModel>();
     final routineVm = context.watch<RoutineViewModel>();
-    final currentUser = routineVm.currentUser.copyWith(streak: routineVm.ownStreak);
+    final currentUser = routineVm.currentUser.copyWith(
+      streak: routineVm.ownStreak,
+    );
     final canSeeFriends = viewModel.canSeeFriends;
-    final activeFriends =
-        viewModel.friends.where((f) => f.currentActivity != null).toList();
-    final allOffline = !viewModel.loading &&
-        viewModel.friends.isNotEmpty &&
+    final activeFriends = viewModel.feedFriends
+        .where((f) => f.currentActivity != null)
+        .toList();
+    final allOffline =
+        !viewModel.loading &&
+        viewModel.feedFriends.isNotEmpty &&
         activeFriends.isEmpty;
 
     return Scaffold(
@@ -67,29 +71,30 @@ class FriendsView extends StatelessWidget {
                           child: EntranceFade(
                             index: 1,
                             offsetY: 40,
-                            child: !viewModel.loading && viewModel.friends.isEmpty
+                            child:
+                                !viewModel.loading && viewModel.feedFriends.isEmpty
                                 ? const _InviteFriendsEmpty()
                                 : allOffline
-                                    ? _AllOfflineView(
-                                        friends: viewModel.friends,
-                                        self: canSeeFriends ? currentUser : null,
-                                        onSelfTap: () =>
-                                            _openMyStory(context, currentUser),
-                                        onChat: (friend) =>
-                                            _openChatFromFriends(context, friend),
-                                      )
-                                    : StoryDeckFeed(
-                                        friends: viewModel.loading
-                                            ? const []
-                                            : viewModel.friends,
-                                        self: canSeeFriends ? currentUser : null,
-                                        onSelfTap: () =>
-                                            _openMyStory(context, currentUser),
-                                        onReport: (userId) =>
-                                            viewModel.reportUser(userId),
-                                        onBlock: (userId) =>
-                                            viewModel.blockUser(userId),
-                                      ),
+                                ? _AllOfflineView(
+                                    friends: viewModel.feedFriends,
+                                    self: canSeeFriends ? currentUser : null,
+                                    onSelfTap: () =>
+                                        _openMyStory(context, currentUser),
+                                    onChat: (friend) =>
+                                        _openChatFromFriends(context, friend),
+                                  )
+                                : StoryDeckFeed(
+                                    friends: viewModel.loading
+                                        ? const []
+                                        : viewModel.feedFriends,
+                                    self: canSeeFriends ? currentUser : null,
+                                    onSelfTap: () =>
+                                        _openMyStory(context, currentUser),
+                                    onReport: (userId) =>
+                                        viewModel.reportUser(userId),
+                                    onBlock: (userId) =>
+                                        viewModel.blockUser(userId),
+                                  ),
                           ),
                         ),
                         if (viewModel.loading)
@@ -110,7 +115,9 @@ class FriendsView extends StatelessWidget {
                               onRetry: () => viewModel.refresh(),
                             ),
                           ),
-                        if (!viewModel.loading && !viewModel.loadError && !canSeeFriends)
+                        if (!viewModel.loading &&
+                            !viewModel.loadError &&
+                            !canSeeFriends)
                           Positioned.fill(
                             child: _ReciprocityGate(constraints: constraints),
                           ),
@@ -136,22 +143,26 @@ void _openMyStory(BuildContext context, UserProfile currentUser) {
 void _openChatFromFriends(BuildContext context, UserProfile friend) {
   HapticFeedback.selectionClick();
   SupabaseChatService.instance.markAsRead(friend.id);
-  Navigator.of(context).push(PageRouteBuilder(
-    transitionDuration: AppMotion.normal,
-    reverseTransitionDuration: AppMotion.exit,
-    pageBuilder: (_, __, ___) => ChatView(friend: friend),
-    transitionsBuilder: (ctx, anim, _, child) {
-      if (AppMotion.reduced(ctx)) {
-        return FadeTransition(opacity: anim, child: child);
-      }
-      final c = CurvedAnimation(parent: anim, curve: AppMotion.enterCurve);
-      return SlideTransition(
-        position:
-            Tween(begin: const Offset(1, 0), end: Offset.zero).animate(c),
-        child: child,
-      );
-    },
-  ));
+  Navigator.of(context).push(
+    PageRouteBuilder(
+      transitionDuration: AppMotion.normal,
+      reverseTransitionDuration: AppMotion.exit,
+      pageBuilder: (_, __, ___) => ChatView(friend: friend),
+      transitionsBuilder: (ctx, anim, _, child) {
+        if (AppMotion.reduced(ctx)) {
+          return FadeTransition(opacity: anim, child: child);
+        }
+        final c = CurvedAnimation(parent: anim, curve: AppMotion.enterCurve);
+        return SlideTransition(
+          position: Tween(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(c),
+          child: child,
+        );
+      },
+    ),
+  );
 }
 
 // ── All-friends-offline layout ────────────────────────────────────────────────
@@ -183,10 +194,7 @@ class _AllOfflineView extends StatelessWidget {
 
         // Título + cards centrados no espaço restante
         Expanded(
-          child: InactivePokeSection(
-            friends: friends,
-            onChat: onChat,
-          ),
+          child: InactivePokeSection(friends: friends, onChat: onChat),
         ),
       ],
     );
@@ -247,8 +255,11 @@ class _SelfBubbleCorner extends StatelessWidget {
                   ),
                   child: hasStory
                       ? Text(emoji, style: const TextStyle(fontSize: 11))
-                      : const Icon(Icons.add_rounded,
-                          size: 13, color: Colors.white),
+                      : const Icon(
+                          Icons.add_rounded,
+                          size: 13,
+                          color: Colors.white,
+                        ),
                 ),
               ),
             ],
@@ -324,9 +335,9 @@ class _HeaderIcons extends StatelessWidget {
 
   void _openFriendSearch(BuildContext context) {
     HapticFeedback.selectionClick();
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const FriendSearchView()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const FriendSearchView()));
   }
 
   void _openSocialHub(BuildContext context) {
@@ -340,8 +351,10 @@ class _HeaderIcons extends StatelessWidget {
           if (AppMotion.reduced(ctx)) {
             return FadeTransition(opacity: anim, child: child);
           }
-          final curved =
-              CurvedAnimation(parent: anim, curve: AppMotion.enterCurve);
+          final curved = CurvedAnimation(
+            parent: anim,
+            curve: AppMotion.enterCurve,
+          );
           return SlideTransition(
             position: Tween<Offset>(
               begin: const Offset(0, 1),
@@ -356,7 +369,8 @@ class _HeaderIcons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final socialBadge = context.watch<FeedViewModel>().pendingCount +
+    final socialBadge =
+        context.watch<FeedViewModel>().pendingCount +
         context.watch<SocialHubViewModel>().unreadMessages;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -419,11 +433,13 @@ class _InviteFriendsEmpty extends StatefulWidget {
 
 class _InviteFriendsEmptyState extends State<_InviteFriendsEmpty>
     with TickerProviderStateMixin {
-  late final AnimationController _orbit =
-      AnimationController(vsync: this, duration: const Duration(seconds: 12))
-        ..repeat();
+  late final AnimationController _orbit = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 12),
+  )..repeat();
   late final AnimationController _pulse = AnimationController(
     vsync: this,
+
     duration: const Duration(milliseconds: 2200),
   )..repeat(reverse: true);
 
@@ -450,9 +466,9 @@ class _InviteFriendsEmptyState extends State<_InviteFriendsEmpty>
 
   void _openSearch() {
     HapticFeedback.selectionClick();
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const FriendSearchView()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const FriendSearchView()));
   }
 
   @override
@@ -519,13 +535,17 @@ class _InviteFriendsEmptyState extends State<_InviteFriendsEmpty>
                                     shape: BoxShape.circle,
                                     gradient: AppColors.brandGradient,
                                     border: Border.all(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.2),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.2,
+                                      ),
                                       width: 1.5,
                                     ),
                                   ),
-                                  child: const Icon(Icons.person_rounded,
-                                      color: Colors.white, size: 20),
+                                  child: const Icon(
+                                    Icons.person_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                                 ),
                               ),
                             );
@@ -545,8 +565,11 @@ class _InviteFriendsEmptyState extends State<_InviteFriendsEmpty>
                         gradient: AppColors.brandGradient,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.waving_hand_rounded,
-                          color: Colors.white, size: 34),
+                      child: const Icon(
+                        Icons.waving_hand_rounded,
+                        color: Colors.white,
+                        size: 34,
+                      ),
                     ),
                   ),
                 ],
@@ -557,8 +580,7 @@ class _InviteFriendsEmptyState extends State<_InviteFriendsEmpty>
             EntranceFade(
               index: 0,
               child: ShaderMask(
-                shaderCallback: (b) =>
-                    AppColors.brandGradient.createShader(b),
+                shaderCallback: (b) => AppColors.brandGradient.createShader(b),
                 child: const Text(
                   'Chame seus amigos!',
                   textAlign: TextAlign.center,
@@ -599,8 +621,7 @@ class _InviteFriendsEmptyState extends State<_InviteFriendsEmpty>
                     borderRadius: BorderRadius.circular(Radii.lg),
                     boxShadow: [
                       BoxShadow(
-                        color:
-                            const Color(0xFF25D366).withValues(alpha: 0.4),
+                        color: const Color(0xFF25D366).withValues(alpha: 0.4),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -609,8 +630,7 @@ class _InviteFriendsEmptyState extends State<_InviteFriendsEmpty>
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.chat_rounded,
-                          color: Colors.white, size: 22),
+                      Icon(Icons.chat_rounded, color: Colors.white, size: 22),
                       SizedBox(width: 10),
                       Text(
                         'Convidar pelo WhatsApp',
@@ -643,8 +663,11 @@ class _InviteFriendsEmptyState extends State<_InviteFriendsEmpty>
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.search_rounded,
-                          color: AppColors.textSecondary, size: 20),
+                      Icon(
+                        Icons.search_rounded,
+                        color: AppColors.textSecondary,
+                        size: 20,
+                      ),
                       SizedBox(width: 10),
                       Text(
                         'Buscar pelo nome',
@@ -690,8 +713,11 @@ class _OfflineOverlay extends StatelessWidget {
                       color: AppColors.textTertiary.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.wifi_off_rounded,
-                        color: AppColors.textTertiary, size: 36),
+                    child: const Icon(
+                      Icons.wifi_off_rounded,
+                      color: AppColors.textTertiary,
+                      size: 36,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   const Text(
@@ -718,7 +744,9 @@ class _OfflineOverlay extends StatelessWidget {
                     onTap: onRetry,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 32, vertical: 14),
+                        horizontal: 32,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
                         gradient: AppColors.brandGradient,
                         borderRadius: BorderRadius.circular(Radii.pill),
@@ -733,8 +761,11 @@ class _OfflineOverlay extends StatelessWidget {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.refresh_rounded,
-                              color: Colors.white, size: 18),
+                          Icon(
+                            Icons.refresh_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             'Tentar novamente',
@@ -776,10 +807,11 @@ class _ReciprocityGateState extends State<_ReciprocityGate> {
     DayHistoryService.instance
         .load(yesterday.weekday)
         .then((plan) {
-      if (mounted && plan != null) {
-        setState(() => _yesterdayPlan = plan);
-      }
-    }).catchError((_) {});
+          if (mounted && plan != null) {
+            setState(() => _yesterdayPlan = plan);
+          }
+        })
+        .catchError((_) {});
   }
 
   void _openComposer({Map<RoutinePeriod, Vibe>? prefill}) {
@@ -792,89 +824,98 @@ class _ReciprocityGateState extends State<_ReciprocityGate> {
 
   @override
   Widget build(BuildContext context) {
-    final horizontalPadding =
-        isLargeScreen(widget.constraints.maxWidth) ? 48.0 : 32.0;
+    final horizontalPadding = isLargeScreen(widget.constraints.maxWidth)
+        ? 48.0
+        : 32.0;
 
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           color: AppColors.canvas.withValues(alpha: 0.72),
-          padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 28),
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            12,
+            horizontalPadding,
+            28,
+          ),
           child: SingleChildScrollView(
             physics: const NeverScrollableScrollPhysics(),
             child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              EntranceFade(
-                index: 0,
-                child: BreathingGlow(
-                  color: AppColors.primary,
-                  minBlur: 24,
-                  maxBlur: 48,
-                  child: Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      gradient: AppColors.brandGradient,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.lock_rounded,
-                        size: 42, color: Colors.white),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 28),
-              const EntranceFade(
-                index: 1,
-                child: Text(
-                  'Mostre o seu agora',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                    letterSpacing: -0.6,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const EntranceFade(
-                index: 2,
-                child: Text(
-                  'O VibeTime é em tempo real. Conte o que você está '
-                  'fazendo agora para desbloquear o que seus amigos estão vivendo.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: AppColors.textSecondary,
-                    height: 1.45,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              EntranceFade(
-                index: 3,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: formMaxWidth),
-                  child: _GateButton(onTap: () => _openComposer()),
-                ),
-              ),
-              if (_yesterdayPlan != null) ...[
-                const SizedBox(height: 16),
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
                 EntranceFade(
-                  index: 4,
+                  index: 0,
+                  child: BreathingGlow(
+                    color: AppColors.primary,
+                    minBlur: 24,
+                    maxBlur: 48,
+                    child: Container(
+                      width: 96,
+                      height: 96,
+                      decoration: BoxDecoration(
+                        gradient: AppColors.brandGradient,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock_rounded,
+                        size: 42,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 28),
+                const EntranceFade(
+                  index: 1,
+                  child: Text(
+                    'Mostre o seu agora',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.textPrimary,
+                      letterSpacing: -0.6,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const EntranceFade(
+                  index: 2,
+                  child: Text(
+                    'O VibeTime é em tempo real. Conte o que você está '
+                    'fazendo agora para desbloquear o que seus amigos estão vivendo.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: AppColors.textSecondary,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                EntranceFade(
+                  index: 3,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: formMaxWidth),
-                    child: _RepeatYesterdayCard(
-                      plan: _yesterdayPlan!,
-                      onTap: () => _openComposer(prefill: _yesterdayPlan),
-                    ),
+                    child: _GateButton(onTap: () => _openComposer()),
                   ),
                 ),
+                if (_yesterdayPlan != null) ...[
+                  const SizedBox(height: 16),
+                  EntranceFade(
+                    index: 4,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: formMaxWidth),
+                      child: _RepeatYesterdayCard(
+                        plan: _yesterdayPlan!,
+                        onTap: () => _openComposer(prefill: _yesterdayPlan),
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
-          ),
+            ),
           ),
         ),
       ),
@@ -1032,7 +1073,9 @@ class _SocialHubIcon extends StatelessWidget {
             ),
             child: Icon(
               Icons.forum_rounded,
-              color: badge > 0 ? AppColors.primaryBright : AppColors.textPrimary,
+              color: badge > 0
+                  ? AppColors.primaryBright
+                  : AppColors.textPrimary,
               size: 20,
             ),
           ),
@@ -1041,8 +1084,7 @@ class _SocialHubIcon extends StatelessWidget {
               top: -3,
               right: -3,
               child: Container(
-                constraints:
-                    const BoxConstraints(minWidth: 18, minHeight: 18),
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
                   gradient: AppColors.brandGradient,
@@ -1073,21 +1115,16 @@ class _ProfileIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatarUrl =
-        context.watch<RoutineViewModel>().currentUser.avatarUrl;
+    final avatarUrl = context.watch<RoutineViewModel>().currentUser.avatarUrl;
 
     return PressableScale(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ProfileView()),
-      ),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ProfileView())),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          UserAvatar(
-            url: avatarUrl,
-            size: 42,
-            borderColor: AppColors.border,
-          ),
+          UserAvatar(url: avatarUrl, size: 42, borderColor: AppColors.border),
           if (pendingCount > 0)
             Positioned(
               top: -3,
@@ -1133,10 +1170,12 @@ class _MyStoryDetailPageState extends State<_MyStoryDetailPage> {
 
   void _editStory(BuildContext context) {
     Navigator.of(context).pop();
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => const StatusComposerView(initialTab: ComposerTab.now),
-      fullscreenDialog: true,
-    ));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const StatusComposerView(initialTab: ComposerTab.now),
+        fullscreenDialog: true,
+      ),
+    );
   }
 
   Future<void> _deleteStory(BuildContext context) async {
@@ -1216,8 +1255,11 @@ class _MyStoryDetailPageState extends State<_MyStoryDetailPage> {
                                   color: Colors.black.withValues(alpha: 0.5),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.close_rounded,
-                                    color: Colors.white, size: 18),
+                                child: const Icon(
+                                  Icons.close_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
                               ),
                             ),
                           ),
@@ -1239,18 +1281,28 @@ class _MyStoryDetailPageState extends State<_MyStoryDetailPage> {
                                   child: PressableScale(
                                     onTap: () => _editStory(context),
                                     child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(Radii.pill),
+                                      borderRadius: BorderRadius.circular(
+                                        Radii.pill,
+                                      ),
                                       child: BackdropFilter(
-                                        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                        filter: ImageFilter.blur(
+                                          sigmaX: 8,
+                                          sigmaY: 8,
+                                        ),
                                         child: Container(
                                           height: 36,
-                                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                          ),
                                           decoration: BoxDecoration(
                                             gradient: AppColors.brandGradient,
-                                            borderRadius: BorderRadius.circular(Radii.pill),
+                                            borderRadius: BorderRadius.circular(
+                                              Radii.pill,
+                                            ),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: AppColors.primary.withValues(alpha: 0.5),
+                                                color: AppColors.primary
+                                                    .withValues(alpha: 0.5),
                                                 blurRadius: 14,
                                                 offset: const Offset(0, 4),
                                               ),
@@ -1259,8 +1311,11 @@ class _MyStoryDetailPageState extends State<_MyStoryDetailPage> {
                                           child: const Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Icon(Icons.edit_rounded,
-                                                  color: Colors.white, size: 13),
+                                              Icon(
+                                                Icons.edit_rounded,
+                                                color: Colors.white,
+                                                size: 13,
+                                              ),
                                               SizedBox(width: 5),
                                               Text(
                                                 'Editar',
@@ -1283,19 +1338,29 @@ class _MyStoryDetailPageState extends State<_MyStoryDetailPage> {
                                     label: 'Excluir story',
                                     button: true,
                                     child: PressableScale(
-                                      onTap: _deleting ? null : () => _deleteStory(context),
+                                      onTap: _deleting
+                                          ? null
+                                          : () => _deleteStory(context),
                                       child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(100),
+                                        borderRadius: BorderRadius.circular(
+                                          100,
+                                        ),
                                         child: BackdropFilter(
-                                          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                          filter: ImageFilter.blur(
+                                            sigmaX: 8,
+                                            sigmaY: 8,
+                                          ),
                                           child: Container(
                                             width: 36,
                                             height: 36,
                                             decoration: BoxDecoration(
-                                              color: Colors.black.withValues(alpha: 0.45),
+                                              color: Colors.black.withValues(
+                                                alpha: 0.45,
+                                              ),
                                               shape: BoxShape.circle,
                                               border: Border.all(
-                                                color: AppColors.danger.withValues(alpha: 0.6),
+                                                color: AppColors.danger
+                                                    .withValues(alpha: 0.6),
                                               ),
                                             ),
                                             child: Center(
@@ -1303,13 +1368,16 @@ class _MyStoryDetailPageState extends State<_MyStoryDetailPage> {
                                                   ? SizedBox(
                                                       width: 16,
                                                       height: 16,
-                                                      child: CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: AppColors.danger,
-                                                      ),
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color: AppColors
+                                                                .danger,
+                                                          ),
                                                     )
                                                   : Icon(
-                                                      Icons.delete_outline_rounded,
+                                                      Icons
+                                                          .delete_outline_rounded,
                                                       color: AppColors.danger,
                                                       size: 17,
                                                     ),
@@ -1327,7 +1395,6 @@ class _MyStoryDetailPageState extends State<_MyStoryDetailPage> {
                       ),
                     ),
                   ),
-
                 ],
               ),
             ),
@@ -1416,10 +1483,14 @@ class _NoStoryCard extends StatelessWidget {
               color: AppColors.primary.withValues(alpha: 0.12),
               shape: BoxShape.circle,
               border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.3)),
+                color: AppColors.primary.withValues(alpha: 0.3),
+              ),
             ),
-            child: const Icon(Icons.add_rounded,
-                color: AppColors.primaryBright, size: 38),
+            child: const Icon(
+              Icons.add_rounded,
+              color: AppColors.primaryBright,
+              size: 38,
+            ),
           ),
           const SizedBox(height: 20),
           const Text(

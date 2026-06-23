@@ -212,6 +212,8 @@ class _StoryViewerState extends State<StoryViewer> {
                       const SizedBox(width: 10),
                       _GlassIconButton(
                         icon: Icons.close_rounded,
+                        bare: true,
+                        iconSize: 26,
                         onTap: () => Navigator.of(context).maybePop(),
                       ),
                     ],
@@ -719,7 +721,10 @@ class _StoryHeader extends StatelessWidget {
               if (onMoreTap != null) ...[
                 const SizedBox(width: 6),
                 _GlassIconButton(
-                  icon: Icons.more_horiz_rounded,
+                  icon: Icons.more_vert_rounded,
+                  bare: true,
+                  iconSize: 20,
+                  iconColor: Colors.white.withValues(alpha: 0.55),
                   onTap: onMoreTap!,
                 ),
               ],
@@ -1326,12 +1331,40 @@ class _OwnStoryActions extends StatelessWidget {
 }
 
 class _GlassIconButton extends StatelessWidget {
-  const _GlassIconButton({required this.icon, required this.onTap});
+  const _GlassIconButton({
+    required this.icon,
+    required this.onTap,
+    this.bare = false,
+    this.iconColor,
+    this.iconSize = 20,
+  });
   final IconData icon;
   final VoidCallback onTap;
 
+  /// When true the button is just the icon — no background, border or blur.
+  final bool bare;
+  final Color? iconColor;
+  final double iconSize;
+
   @override
   Widget build(BuildContext context) {
+    if (bare) {
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Icon(
+            icon,
+            color: iconColor ?? Colors.white,
+            size: iconSize,
+            // Soft shadow keeps it legible over bright photos.
+            shadows: const [Shadow(color: Colors.black54, blurRadius: 8)],
+          ),
+        ),
+      );
+    }
     return GestureDetector(
       onTap: onTap,
       child: ClipOval(
@@ -1345,7 +1378,7 @@ class _GlassIconButton extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
             ),
-            child: Icon(icon, color: Colors.white, size: 20),
+            child: Icon(icon, color: iconColor ?? Colors.white, size: iconSize),
           ),
         ),
       ),

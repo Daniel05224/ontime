@@ -24,6 +24,10 @@ class NotificationService {
   /// Set by ChatView when opened — suppresses notifications for that sender.
   String? activeChatWithId;
 
+  /// Updated by FeedViewModel whenever the blocked list changes.
+  /// Notifications from these senders are silently dropped.
+  final Set<String> blockedIds = {};
+
   /// Called when user taps a message notification.
   void Function(String senderId, String senderName)? onMessageTap;
 
@@ -203,6 +207,7 @@ class NotificationService {
   void _handleFcmForeground(RemoteMessage message) {
     final data = message.data;
     final senderId = data['sender_id'] as String? ?? '';
+    if (blockedIds.contains(senderId)) return;
     final senderName = data['sender_name'] as String? ?? '';
     final body = data['body'] as String? ?? message.notification?.body ?? '';
     showMessage(senderId: senderId, senderName: senderName, body: body);
@@ -213,6 +218,7 @@ class NotificationService {
     final type = data['type'] as String?;
     if (type == 'message') {
       final senderId = data['sender_id'] as String? ?? '';
+      if (blockedIds.contains(senderId)) return;
       final senderName = data['sender_name'] as String? ?? '';
       onMessageTap?.call(senderId, senderName);
     }
@@ -307,6 +313,7 @@ class NotificationService {
 
   Future<void> _handleIncomingMessage(Map<String, dynamic> record) async {
     final senderId = record['sender_id'] as String? ?? '';
+    if (blockedIds.contains(senderId)) return;
     final type = record['type'] as String? ?? 'text';
     final content = record['content'] as String? ?? '';
 
@@ -346,6 +353,7 @@ class NotificationService {
       final type = data['type'] as String?;
       if (type == 'message') {
         final senderId = data['sender_id'] as String? ?? '';
+        if (blockedIds.contains(senderId)) return;
         final senderName = data['sender_name'] as String? ?? '';
         onMessageTap?.call(senderId, senderName);
       } else if (type == 'expiry') {
