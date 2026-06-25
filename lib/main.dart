@@ -163,6 +163,18 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.dark(),
       navigatorKey: _navKey,
       home: const _AuthGate(),
+      builder: (context, child) {
+        // On iPad, constrain the UI to a phone-width column so the app looks
+        // and behaves the same as on iPhone without any per-screen changes.
+        final width = MediaQuery.sizeOf(context).width;
+        if (width <= 430 || child == null) return child ?? const SizedBox();
+        return Center(
+          child: SizedBox(
+            width: 430,
+            child: ClipRect(child: child),
+          ),
+        );
+      },
     );
   }
 }

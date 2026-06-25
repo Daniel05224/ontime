@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../../data/services/demo_mode.dart';
 import '../../../../data/services/supabase_chat_service.dart';
 import '../../../../data/services/supabase_friend_service.dart';
 import '../../friends/views/friend_search_view.dart';
@@ -73,6 +74,17 @@ class _SocialHubViewState extends State<SocialHubView>
   }
 
   Future<void> _loadPreviews() async {
+    if (DemoMode.instance.isActive) {
+      if (mounted) {
+        setState(() {
+          _lastMessages.addAll(DemoMode.lastMessages);
+          _unreadCounts.addAll(DemoMode.unreadCounts);
+          _previewsLoaded = true;
+        });
+      }
+      return;
+    }
+
     final friends = context.read<FeedViewModel>().friends;
     if (friends.isEmpty) {
       if (mounted) setState(() => _previewsLoaded = true);

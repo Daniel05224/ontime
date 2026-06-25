@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../data/services/demo_mode.dart';
 import '../../../../data/services/notification_service.dart';
 import '../../../../data/services/supabase_chat_service.dart';
 import '../../../../domain/models/chat_message.dart';
@@ -60,6 +61,12 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Future<void> _load() async {
+    if (DemoMode.instance.isActive) {
+      final msgs = DemoMode.chats[widget.friend.id] ?? [];
+      if (mounted) setState(() { _messages = msgs; _loading = false; });
+      _scrollToBottom(jump: true);
+      return;
+    }
     final vm = context.read<FeedViewModel>();
     // Blocker sees an empty chat — messages from the blocked person are hidden.
     if (vm.isBlocked(widget.friend.id)) {
@@ -111,6 +118,19 @@ class _ChatViewState extends State<ChatView> {
     HapticFeedback.selectionClick();
     _textController.clear();
     setState(() => _sending = true);
+
+    if (DemoMode.instance.isActive) {
+      final msg = ChatMessage(
+        id: 'demo-sent-${DateTime.now().millisecondsSinceEpoch}',
+        senderId: 'demo-self',
+        receiverId: widget.friend.id,
+        content: text,
+        createdAt: DateTime.now(),
+      );
+      if (mounted) setState(() { _messages = [..._messages, msg]; _sending = false; });
+      _scrollToBottom();
+      return;
+    }
 
     await SupabaseChatService.instance.sendMessage(widget.friend.id, text);
 
